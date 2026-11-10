@@ -220,9 +220,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const fullFormattedPhone = `+62${formData.whatsapp}`;
     const cleanInputName = formData.name.trim();
 
-    // =========================================================================
-    // VALIDASI KOMBINASI: (Acara Sama + Nomor WA Sama + Nama Lengkap Sama Persis)
-    // =========================================================================
+    // VALIDASI KOMBINASI DUPLIKAT
     const { data: duplicateCheck, error: dupError } = await supabase
       .from('registrations')
       .select('id, name, whatsapp')
@@ -378,16 +376,13 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                   <div className="font-mono text-xs font-bold text-teal-700 tracking-wider bg-slate-100 px-3 py-1 rounded">
                     {tkt.ticket_id}
                   </div>
-                  <p className="text-[10px] text-slate-400">Tunjukkan QR ini kepada petugas pintu masuk</p>
+                  <p className="text-[10px] text-slate-400">Tunjukkan QR ini atau cek inbox email Anda saat masuk</p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="pt-2 text-center space-y-2">
-            <button onClick={() => window.print()} className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold border border-slate-700 flex items-center justify-center gap-2">
-              <Download size={14} /> Cetak / Simpan E-Tiket
-            </button>
+          <div className="pt-2 text-center">
             <button onClick={onBackToAdmin} className="text-xs text-teal-400 hover:underline block mx-auto">
               Kembali ke Dashboard Admin
             </button>
