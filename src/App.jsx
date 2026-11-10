@@ -192,7 +192,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const fullFormattedPhone = `+62${formData.whatsapp}`;
     const regId = `REG-${Date.now()}`;
     
-    // 1. Simpan ke tabel registrations
     const { error: regError } = await supabase.from('registrations').insert([{
       id: regId,
       event_id: eventId,
@@ -208,7 +207,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
-    // 2. Dapatkan Tiket untuk Penanggung Jawab Utama
     let memberPayloads = [
       {
         id: `MEM-${Date.now()}-0`,
@@ -241,7 +239,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
-    // 3. Update counter kuota registered pada events
     const newRegisteredCount = (eventData.registered || 0) + memberPayloads.length;
     await supabase.from('events').update({ registered: newRegisteredCount }).eq('id', eventId);
 
@@ -642,7 +639,11 @@ export default function App() {
         fixed md:static inset-y-0 left-0 z-40 w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 shadow-xl transition-transform duration-300
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+        <div 
+          onClick={() => { setActiveTab('dashboard'); if(mobileMenuOpen) setMobileMenuOpen(false); }}
+          className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950 cursor-pointer hover:bg-slate-900 transition"
+          title="Kembali ke Dashboard Overview"
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold text-xl shadow-md">
               GII
@@ -653,7 +654,7 @@ export default function App() {
             </div>
           </div>
           <button 
-            onClick={() => setMobileMenuOpen(false)} 
+            onClick={(e) => { e.stopPropagation(); setMobileMenuOpen(false); }} 
             className="md:hidden text-slate-400 hover:text-white p-1"
           >
             <X size={20} />
@@ -861,15 +862,17 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
             <h3 className="font-bold text-slate-800 text-xs md:text-sm flex items-center gap-2">
               <Calendar size={18} className="text-teal-600" /> Acara Mendatang & Kuota
             </h3>
-            <button onClick={() => setActiveTab('events')} className="text-xs text-teal-600 hover:underline font-semibold">
-              Kelola Semua Acara →
-            </button>
+            {currentRole !== 'CHECKIN_STAFF' && (
+              <button onClick={() => setActiveTab('events')} className="text-xs text-teal-600 hover:underline font-semibold">
+                Kelola Semua Acara →
+              </button>
+            )}
           </div>
 
           <div className="space-y-3">
             {events.length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                Belum ada acara tersimpan. Silakan klik "Kelola Semua Acara" untuk membuat acara pertama!
+                Belum ada acara tersimpan.
               </div>
             ) : (
               events.map(evt => {
@@ -926,16 +929,19 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
                 </button>
               )}
 
-              <button onClick={() => setActiveTab('events')} className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition">
-                <div className="flex items-center gap-3">
-                  <Plus size={20} className="text-slate-600 shrink-0" />
-                  <div>
-                    <div className="font-bold text-xs">Buat Acara Baru</div>
-                    <div className="text-[11px] text-slate-500">Tambah kegiatan ibadah atau seminar</div>
+              {/* Tombol Buat Acara Baru disembunyikan khusus untuk Staff Check-In */}
+              {currentRole !== 'CHECKIN_STAFF' && (
+                <button onClick={() => setActiveTab('events')} className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition">
+                  <div className="flex items-center gap-3">
+                    <Plus size={20} className="text-slate-600 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">Buat Acara Baru</div>
+                      <div className="text-[11px] text-slate-500">Tambah kegiatan ibadah atau seminar</div>
+                    </div>
                   </div>
-                </div>
-                <ArrowRight size={16} className="text-slate-400 shrink-0" />
-              </button>
+                  <ArrowRight size={16} className="text-slate-400 shrink-0" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1470,9 +1476,7 @@ function RegistrationsModule({ events, showToast }) {
   const [selectedEventId, setSelectedEventId] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // State Modal QR Code
   const [activeQrModal, setActiveQrModal] = useState(null);
-  // State Loading Check-in Manual
   const [processingId, setProcessingId] = useState(null);
 
   const fetchRegistrations = async () => {
@@ -1671,7 +1675,6 @@ function RegistrationsModule({ events, showToast }) {
         </div>
       )}
 
-      {/* MODAL POPUP QR CODE JEMAAT */}
       {activeQrModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 border border-slate-200">
@@ -1941,7 +1944,6 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
         )}
       </div>
 
-      {/* MODAL TAMBAH PENGGUNA */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
@@ -1985,7 +1987,6 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
         </div>
       )}
 
-      {/* MODAL EDIT PENGGUNA */}
       {showEditModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
