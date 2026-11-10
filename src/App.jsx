@@ -114,6 +114,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     notes: ''
   });
 
+  // Anggota 1 otomatis sinkron dengan nama Penanggung Jawab
   const [members, setMembers] = useState([
     { name: '', category: 'Dewasa' }
   ]);
@@ -138,6 +139,21 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
     if (eventId) fetchEvent();
   }, [eventId]);
+
+  // Handler nama PJ (Otomatis update Anggota 1 di mode Rombongan jika belum diubah manual)
+  const handleMainNameChange = (e) => {
+    const val = e.target.value;
+    setFormData(prev => ({ ...prev, name: val }));
+
+    setMembers(prevMembers => {
+      const updated = [...prevMembers];
+      // Jika anggota 1 kosong atau sama dengan nama PJ sebelumnya, otomatis ikut terupdate
+      if (updated.length > 0) {
+        updated[0] = { ...updated[0], name: val };
+      }
+      return updated;
+    });
+  };
 
   const handlePhoneChange = (e) => {
     let rawInput = e.target.value;
@@ -225,13 +241,21 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
         category: formData.category
       }];
     } else {
-      memberPayloads = members.map((m, idx) => ({
-        id: `MEM-${Date.now()}-${idx}`,
-        registration_id: regId,
-        ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
-        name: m.name || formData.name,
-        category: m.category
-      }));
+      memberPayloads = members
+        .filter(m => m.name.trim() !== '') // Filter agar baris kosong tidak terdaftar
+        .map((m, idx) => ({
+          id: `MEM-${Date.now()}-${idx}`,
+          registration_id: regId,
+          ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
+          name: m.name,
+          category: m.category
+        }));
+    }
+
+    if (memberPayloads.length === 0) {
+      alert('Mohon isi minimal 1 nama peserta yang hadir.');
+      setSubmitting(false);
+      return;
     }
 
     const { error: memError } = await supabase.from('registration_members').insert(memberPayloads);
@@ -285,7 +309,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               <CheckCircle size={28} />
             </div>
             <h2 className="font-bold text-lg text-emerald-400">Pendaftaran Berhasil!</h2>
-            <p className="text-xs text-slate-400">E-Tiket resmi telah terbit untuk kegiatan:</p>
+            <p className="text-xs text-slate-400">Total {successRegistration.tickets.length} E-Tiket resmi terbit untuk kegiatan:</p>
             <h3 className="font-bold text-sm text-white bg-slate-800 p-2 rounded-lg border border-slate-700">{successRegistration.event.name}</h3>
             {successRegistration.mainContact.email && (
               <p className="text-[11px] text-teal-400 font-medium">✉️ Salinan tiket dikirim ke email: {successRegistration.mainContact.email}</p>
@@ -294,13 +318,13 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
           <div className="space-y-4">
             <div className="text-xs text-slate-400 space-y-1 bg-slate-950 p-3 rounded-lg border border-slate-800">
-              <div>👤 <strong>Kontak Utama:</strong> {successRegistration.mainContact.name} ({successRegistration.mainContact.whatsapp})</div>
+              <div>👤 <strong>Penanggung Jawab:</strong> {successRegistration.mainContact.name} ({successRegistration.mainContact.whatsapp})</div>
               <div>📅 <strong>Tanggal & Jam:</strong> {successRegistration.event.date} | {successRegistration.event.time}</div>
               <div>📍 <strong>Lokasi:</strong> {successRegistration.event.venue}</div>
             </div>
 
             <div className="space-y-3">
-              <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider text-center">E-Tiket & Kode QR Anda</h4>
+              <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider text-center">Daftar E-Tiket & Kode QR</h4>
               {successRegistration.tickets.map((tkt, idx) => (
                 <div key={tkt.id} className="bg-white text-slate-900 p-4 rounded-xl shadow border border-slate-200 flex flex-col items-center text-center space-y-2">
                   <div className="w-full flex justify-between items-center text-[10px] text-slate-500 font-bold border-b pb-1">
@@ -377,8 +401,8 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             </h4>
             
             <div>
-              <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap Peserta *</label>
-              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Joshua Merian Limas" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
+              <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap Penanggung Jawab *</label>
+              <input required type="text" value={formData.name} onChange={handleMainNameChange} placeholder="Contoh: Joshua Merian Limas" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -443,7 +467,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                     const updated = [...members];
                     updated[idx].name = e.target.value;
                     setMembers(updated);
-                  }} placeholder={`Nama Peserta ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                  }} placeholder={idx === 0 ? "Nama Penanggung Jawab" : `Nama Peserta ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
                   
                   <select value={member.category} onChange={e => {
                     const updated = [...members];
