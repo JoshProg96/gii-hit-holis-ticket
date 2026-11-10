@@ -101,7 +101,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Real Database State (Supabase)
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [contacts, setContacts] = useState([]);
@@ -121,7 +120,6 @@ export default function App() {
   const [scannerSearchQuery, setScannerSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Fetch Real Events dari Supabase Database
   const fetchRealEvents = async () => {
     setLoadingEvents(true);
     const { data, error } = await supabase
@@ -132,7 +130,6 @@ export default function App() {
     if (error) {
       console.error('Error fetching events:', error);
     } else {
-      // Mapping snake_case Supabase ke camelCase aplikasi
       const mappedEvents = (data || []).map(e => ({
         id: e.id,
         name: e.name,
@@ -144,7 +141,7 @@ export default function App() {
         registered: e.registered || 0,
         checkedIn: e.checked_in || 0,
         status: e.status,
-        allowFamily: e.allow_family,
+        allowFamily: e.allow_family ?? true,
         banner: e.banner || 'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&q=80&w=1000',
         description: e.description
       }));
@@ -497,7 +494,8 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
               </div>
             ) : (
               events.map(evt => {
-                const pct = Math.round((evt.registered / evt.capacity) * 100);
+                const isUnlimited = evt.capacity === null || evt.capacity === 0;
+                const pct = isUnlimited ? 0 : Math.round((evt.registered / evt.capacity) * 100);
                 return (
                   <div key={evt.id} className="p-3.5 border border-slate-100 rounded-lg hover:border-slate-300 transition bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1">
@@ -513,12 +511,14 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
 
                     <div className="w-full md:w-48 space-y-1 shrink-0">
                       <div className="flex justify-between text-xs font-semibold text-slate-700">
-                        <span>Terisi: {evt.registered}/{evt.capacity}</span>
-                        <span>{pct}%</span>
+                        <span>Terisi: {evt.registered} / {isUnlimited ? '∞ Unlimited' : evt.capacity}</span>
+                        {!isUnlimited && <span>{pct}%</span>}
                       </div>
-                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                        <div className="bg-teal-600 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }}></div>
-                      </div>
+                      {!isUnlimited && (
+                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                          <div className="bg-teal-600 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }}></div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -589,6 +589,7 @@ function MetricCard({ title, value, icon, subtext, bg }) {
 function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isUnlimited, setIsUnlimited] = useState(false);
   
   const [newEvent, setNewEvent] = useState({
     name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, description: ''
@@ -606,7 +607,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
       date: newEvent.date,
       time: newEvent.time || '09:00 WIB',
       venue: newEvent.venue || 'Main Sanctuary GII Holis',
-      capacity: parseInt(newEvent.capacity) || 100,
+      capacity: isUnlimited ? null : (parseInt(newEvent.capacity) || 100),
       registered: 0,
       checked_in: 0,
       status: 'Aktif',
@@ -625,7 +626,8 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
       showToast('Acara REAL berhasil disimpan ke Supabase Database!');
       setShowCreateModal(false);
       setNewEvent({ name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, description: '' });
-      fetchRealEvents(); // Refresh data dari DB
+      setIsUnlimited(false);
+      fetchRealEvents();
     }
   };
 
@@ -659,47 +661,50 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {events.map(evt => (
-            <div key={evt.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition">
-              <div className="h-32 bg-slate-800 relative">
-                <img src={evt.banner} alt={evt.name} className="w-full h-full object-cover opacity-60" />
-                <div className="absolute top-3 left-3">
-                  <span className="bg-slate-900/80 text-white px-2.5 py-1 rounded text-[11px] font-bold backdrop-blur-sm">
-                    {evt.category}
-                  </span>
-                </div>
-                <div className="absolute top-3 right-3">
-                  <span className="bg-emerald-500 text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                    {evt.status}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-4 md:p-5 space-y-4">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-base">{evt.name}</h4>
-                  <p className="text-xs text-slate-500 line-clamp-2 mt-1">{evt.description}</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <div>📅 <strong>Tanggal:</strong> {evt.date}</div>
-                  <div>⏰ <strong>Waktu:</strong> {evt.time}</div>
-                  <div className="sm:col-span-2">📍 <strong>Lokasi:</strong> {evt.venue}</div>
-                  <div className="sm:col-span-2">👨‍👩‍👧‍👦 <strong>Tipe:</strong> {evt.allowFamily ? 'Individu & Keluarga' : 'Hanya Individu'}</div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-slate-100 gap-2">
-                  <div className="text-xs">
-                    <span className="text-slate-500">Pendaftar: </span>
-                    <strong className="text-teal-700 font-bold">{evt.registered}</strong> / {evt.capacity} Porsi
+          {events.map(evt => {
+            const isUnlim = evt.capacity === null || evt.capacity === 0;
+            return (
+              <div key={evt.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition">
+                <div className="h-32 bg-slate-800 relative">
+                  <img src={evt.banner} alt={evt.name} className="w-full h-full object-cover opacity-60" />
+                  <div className="absolute top-3 left-3">
+                    <span className="bg-slate-900/80 text-white px-2.5 py-1 rounded text-[11px] font-bold backdrop-blur-sm">
+                      {evt.category}
+                    </span>
                   </div>
-                  <button onClick={() => showToast(`URL Publik disalin: https://gii-holis-tickets.web.id/register/${evt.id}`)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg text-xs flex items-center justify-center gap-1 border border-slate-200 w-full sm:w-auto" title="Salin Link Pendaftaran Publik">
-                    <Copy size={14} /> Link Form
-                  </button>
+                  <div className="absolute top-3 right-3">
+                    <span className="bg-emerald-500 text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                      {evt.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 md:p-5 space-y-4">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-base">{evt.name}</h4>
+                    <p className="text-xs text-slate-500 line-clamp-2 mt-1">{evt.description}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <div>📅 <strong>Tanggal:</strong> {evt.date}</div>
+                    <div>⏰ <strong>Waktu:</strong> {evt.time}</div>
+                    <div className="sm:col-span-2">📍 <strong>Lokasi:</strong> {evt.venue}</div>
+                    <div className="sm:col-span-2">👨‍👩‍👧‍👦 <strong>Tipe:</strong> {evt.allowFamily ? 'Individu & Keluarga' : 'Hanya Individu'}</div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-slate-100 gap-2">
+                    <div className="text-xs">
+                      <span className="text-slate-500">Pendaftar: </span>
+                      <strong className="text-teal-700 font-bold">{evt.registered}</strong> / {isUnlim ? '∞ Unlimited' : `${evt.capacity} Porsi`}
+                    </div>
+                    <button onClick={() => showToast(`URL Publik disalin: https://gii-holis-tickets.web.id/register/${evt.id}`)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg text-xs flex items-center justify-center gap-1 border border-slate-200 w-full sm:w-auto" title="Salin Link Pendaftaran Publik">
+                      <Copy size={14} /> Link Form
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -713,23 +718,41 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
             <form onSubmit={handleCreateEvent} className="p-6 space-y-4 text-xs">
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Nama Acara *</label>
-                <input required type="text" value={newEvent.name} onChange={e => setNewEvent({...newEvent, name: e.target.value})} placeholder="Contoh: Ibadah Natal Agung GII Holis 2026" className="w-full p-2.5 border rounded-lg border-slate-300 focus:ring-1 focus:ring-teal-500" />
+                <input required type="text" value={newEvent.name} onChange={e => setNewEvent({...newEvent, name: e.target.value})} placeholder="Contoh: Peresmian Gedung Baru GII Hok Im Tong Holis" className="w-full p-2.5 border rounded-lg border-slate-300 focus:ring-1 focus:ring-teal-500" />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1 text-slate-700">Kategori</label>
-                  <select value={newEvent.category} onChange={e => setNewEvent({...newEvent, category: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300">
+                  <select value={newEvent.category} onChange={e => setNewEvent({...newEvent, category: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
                     <option value="Ibadah Minggu">Ibadah Minggu</option>
                     <option value="Natal">Natal</option>
                     <option value="Paskah">Paskah</option>
                     <option value="Youth Gathering">Youth Gathering</option>
                     <option value="Seminar / Konferensi">Seminar / Konferensi</option>
+                    <option value="Lain-lain">Lain-lain</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Kapasitas Maksimal</label>
-                  <input type="number" value={newEvent.capacity} onChange={e => setNewEvent({...newEvent, capacity: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-semibold text-slate-700">Kapasitas Maksimal</label>
+                    <label className="flex items-center gap-1 cursor-pointer text-[11px] text-teal-700 font-bold">
+                      <input 
+                        type="checkbox" 
+                        checked={isUnlimited} 
+                        onChange={e => setIsUnlimited(e.target.checked)}
+                      />
+                      <span>Tanpa Batas (∞)</span>
+                    </label>
+                  </div>
+                  <input 
+                    type="number" 
+                    disabled={isUnlimited}
+                    value={isUnlimited ? '' : newEvent.capacity} 
+                    onChange={e => setNewEvent({...newEvent, capacity: e.target.value})} 
+                    placeholder={isUnlimited ? "Kapasitas Tidak Terbatas" : "200"}
+                    className="w-full p-2.5 border rounded-lg border-slate-300 disabled:bg-slate-100 disabled:text-slate-400" 
+                  />
                 </div>
               </div>
 
@@ -740,7 +763,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
                 </div>
                 <div>
                   <label className="block font-semibold mb-1 text-slate-700">Jam / Waktu</label>
-                  <input type="text" placeholder="09:00 - 12:00 WIB" value={newEvent.time} onChange={e => setNewEvent({...newEvent, time: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
+                  <input type="text" placeholder="07.30 - 10.00 WIB" value={newEvent.time} onChange={e => setNewEvent({...newEvent, time: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
                 </div>
               </div>
 
@@ -774,8 +797,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
 }
 
 // ==========================================
-// MODULE 3 BISA DIKEMBANGKAN SESUAI KEBUTUHAN
-// (Registrations, Scanner, CRM, dll tetap siap dipakai)
+// MODULE LAINNYA
 // ==========================================
 function RegistrationsModule({ registrations, setRegistrations, events, showToast }) {
   return (
