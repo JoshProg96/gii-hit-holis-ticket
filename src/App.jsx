@@ -6,7 +6,6 @@ import {
   FileText, Sparkles, Camera, ArrowRight, Lock, Check,
   Share2, AlertTriangle, LogOut, Menu, X, RefreshCw, Ticket, ChevronRight
 } from 'lucide-react';
-import { Html5QrcodeScanner } from 'https://esm.sh/html5-qrcode';
 import { supabase } from './supabaseClient';
 
 // ==========================================
@@ -101,9 +100,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const [submitting, setSubmitting] = useState(false);
   const [successRegistration, setSuccessRegistration] = useState(null);
 
-  // Tab Pilihan: 'INDIVIDUAL' atau 'GROUP'
   const [regType, setRegType] = useState('INDIVIDUAL');
-
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
 
@@ -115,7 +112,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     notes: ''
   });
 
-  // Anggota Tambahan Murni (Mulai dari Orang Tambahan)
   const [members, setMembers] = useState([]);
 
   useEffect(() => {
@@ -196,7 +192,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const fullFormattedPhone = `+62${formData.whatsapp}`;
     const regId = `REG-${Date.now()}`;
     
-    // 1. Simpan ke tabel registrations (Master Penanggung Jawab)
+    // 1. Simpan ke tabel registrations
     const { error: regError } = await supabase.from('registrations').insert([{
       id: regId,
       event_id: eventId,
@@ -212,7 +208,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
-    // 2. LOGIKA BACKEND: Dapatkan 1 Tiket untuk Penanggung Jawab Utama
+    // 2. Dapatkan Tiket untuk Penanggung Jawab Utama
     let memberPayloads = [
       {
         id: `MEM-${Date.now()}-0`,
@@ -223,7 +219,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       }
     ];
 
-    // Jika tipe Pendaftaran Rombongan, gabungkan dengan anggota tambahan
     if (regType === 'GROUP') {
       const extraMembers = members
         .filter(m => m.name.trim() !== '')
@@ -279,7 +274,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     );
   }
 
-  // TAMPILAN SUKSES & TIKET QR
   if (successRegistration) {
     return (
       <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex flex-col items-center justify-center">
@@ -291,9 +285,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             <h2 className="font-bold text-lg text-emerald-400">Pendaftaran Berhasil!</h2>
             <p className="text-xs text-slate-400">Total {successRegistration.tickets.length} E-Tiket resmi terbit untuk kegiatan:</p>
             <h3 className="font-bold text-sm text-white bg-slate-800 p-2 rounded-lg border border-slate-700">{successRegistration.event.name}</h3>
-            {successRegistration.mainContact.email && (
-              <p className="text-[11px] text-teal-400 font-medium">✉️ Salinan tiket dikirim ke email: {successRegistration.mainContact.email}</p>
-            )}
           </div>
 
           <div className="space-y-4">
@@ -341,7 +332,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     );
   }
 
-  // TAMPILAN FORMULIR PENDAFTARAN
   return (
     <div className="min-h-screen bg-slate-900 p-4 md:p-8 flex flex-col items-center justify-center">
       <div className="max-w-xl w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-2xl text-white space-y-6">
@@ -354,7 +344,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           </p>
         </div>
 
-        {/* TAB SWITCH: INDIVIDU VS KELUARGA */}
         {eventData.allow_family && (
           <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-xl border border-slate-700 text-xs font-bold">
             <button
@@ -434,7 +423,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             )}
           </div>
 
-          {/* HANYA TAMPIL JIKA PILIH FORM ROMBONGAN */}
           {regType === 'GROUP' && (
             <div className="space-y-3 pt-3 border-t border-slate-700">
               <div className="flex justify-between items-center">
@@ -508,7 +496,6 @@ export default function App() {
   const [contacts, setContacts] = useState([]);
   const [registrations, setRegistrations] = useState([]);
 
-  // Direct Public Registration State (via Hash Link)
   const [publicEventId, setPublicEventId] = useState(null);
   
   const [branding, setBranding] = useState({
@@ -624,7 +611,6 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // IF ACCESSING PUBLIC REGISTER FORM VIA HASH
   if (publicEventId) {
     return <PublicRegisterPage eventId={publicEventId} onBackToAdmin={() => window.location.hash = ''} />;
   }
@@ -744,7 +730,7 @@ export default function App() {
             <h2 className="text-sm md:text-xl font-bold text-slate-800 capitalize truncate">
               {activeTab === 'dashboard' && 'Dashboard Overview'}
               {activeTab === 'events' && 'Kelola Acara Real (Supabase)'}
-              {activeTab === 'registrations' && 'Data Registrasi'}
+              {activeTab === 'registrations' && 'Data Pendaftaran Real (Supabase)'}
               {activeTab === 'checkin' && 'Scanner Tiket QR'}
               {activeTab === 'contacts' && 'Database Jemaat (CRM)'}
               {activeTab === 'invitations' && 'Undangan Digital'}
@@ -784,7 +770,7 @@ export default function App() {
         <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50">
           {activeTab === 'dashboard' && <DashboardModule events={events} contacts={contacts} registrations={registrations} setActiveTab={setActiveTab} currentRole={currentRole} />}
           {activeTab === 'events' && <EventsModule events={events} fetchRealEvents={fetchRealEvents} loadingEvents={loadingEvents} showToast={showToast} setPublicEventId={setPublicEventId} />}
-          {activeTab === 'registrations' && <RegistrationsModule registrations={registrations} setRegistrations={setRegistrations} events={events} showToast={showToast} />}
+          {activeTab === 'registrations' && <RegistrationsModule events={events} showToast={showToast} />}
           
           {activeTab === 'checkin' && (
             ['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) ? (
@@ -861,8 +847,8 @@ function SidebarItem({ id, icon, label, active, setActive, badge, highlight, sta
 // MODULE 1: DASHBOARD
 // ==========================================
 function DashboardModule({ events, contacts, registrations, setActiveTab, currentRole }) {
-  const totalRegisteredMembers = registrations.reduce((acc, r) => acc + (r.members ? r.members.length : 0), 0);
-  const totalCheckedIn = registrations.reduce((acc, r) => acc + (r.members ? r.members.filter(m => m.checkedIn).length : 0), 0);
+  const totalRegisteredMembers = registrations.reduce((acc, r) => acc + (r.registration_members ? r.registration_members.length : 0), 0);
+  const totalCheckedIn = registrations.reduce((acc, r) => acc + (r.registration_members ? r.registration_members.filter(m => m.checked_in).length : 0), 0);
 
   return (
     <div className="space-y-6">
@@ -1204,7 +1190,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 }
 
 // ==========================================
-// MODULE 3: CHECK-IN SCANNER QR REAL (IOS SAFARI FIX)
+// MODULE 3: CHECK-IN SCANNER QR REAL (IOS & PC FIX)
 // ==========================================
 function CheckInModule({ showToast }) {
   const [scanResult, setScanResult] = useState(null);
@@ -1218,7 +1204,6 @@ function CheckInModule({ showToast }) {
 
     const startScanner = async () => {
       try {
-        // Import library dari CDN secara dinamis untuk kompatibilitas iOS
         const { Html5Qrcode } = await import('https://esm.sh/html5-qrcode');
         html5QrCode = new Html5Qrcode("reader");
 
@@ -1228,7 +1213,6 @@ function CheckInModule({ showToast }) {
           aspectRatio: 1.0
         };
 
-        // Utamakan kamera belakang (facingMode: environment) untuk iOS/Android
         const qrCodeSuccessCallback = (decodedText) => {
           handleProcessCheckIn(decodedText.trim());
         };
@@ -1240,7 +1224,6 @@ function CheckInModule({ showToast }) {
         );
       } catch (err) {
         console.warn("Gagal pakai kamera belakang, mencoba kamera default:", err);
-        // Fallback jika device tidak mendukung facingMode environment
         try {
           if (html5QrCode) {
             await html5QrCode.start(
@@ -1251,7 +1234,7 @@ function CheckInModule({ showToast }) {
           }
         } catch (fallbackErr) {
           console.error("Kamera gagal diakses penuh:", fallbackErr);
-          setCameraError("Kamera tidak dapat diakses otomatis. Pastikan izin kamera di Pengaturan Safari iOS sudah diizinkan (Allow).");
+          setCameraError("Kamera tidak dapat diakses otomatis. Pastikan izin kamera di browser sudah diizinkan (Allow).");
         }
       }
     };
@@ -1265,25 +1248,32 @@ function CheckInModule({ showToast }) {
     };
   }, []);
 
-  const handleProcessCheckIn = async (ticketId) => {
+  const handleProcessCheckIn = async (rawTicketId) => {
     if (loadingCheckIn) return;
     setLoadingCheckIn(true);
     setScanResult(null);
+
+    // Pembersihan kode tiket jika QR membawa prefix URL atau string ekstra
+    let cleanTicketId = rawTicketId.trim();
+    if (cleanTicketId.includes('TKT-')) {
+      const match = cleanTicketId.match(/TKT-\d+/);
+      if (match) cleanTicketId = match[0];
+    }
 
     // 1. Cari data tiket di Supabase
     const { data: ticket, error } = await supabase
       .from('registration_members')
       .select('*, registrations(name, whatsapp, event_id)')
-      .eq('ticket_id', ticketId)
+      .eq('ticket_id', cleanTicketId)
       .single();
 
     if (error || !ticket) {
       setScanResult({
         status: 'INVALID',
-        message: `Tiket "${ticketId}" Tidak Ditemukan!`,
-        ticketId
+        message: `Tiket "${cleanTicketId}" Tidak Ditemukan!`,
+        ticketId: cleanTicketId
       });
-      if (showToast) showToast(`Tiket ${ticketId} tidak valid!`, 'error');
+      if (showToast) showToast(`Tiket ${cleanTicketId} tidak valid!`, 'error');
       setLoadingCheckIn(false);
       return;
     }
@@ -1481,17 +1471,154 @@ function CheckInModule({ showToast }) {
 }
 
 // ==========================================
-// MODULE LAINNYA
+// MODULE 4: DATA REGISTRASI & PENDAFTARAN (REAL SUPABASE DB)
 // ==========================================
-function RegistrationsModule() {
+function RegistrationsModule({ events, showToast }) {
+  const [registrations, setRegistrations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedEventId, setSelectedEventId] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchRegistrations = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('registrations')
+      .select('*, events(name), registration_members(*)')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching registrations:", error);
+      if (showToast) showToast(`Gagal memuat data: ${error.message}`, 'error');
+    } else {
+      setRegistrations(data || []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchRegistrations();
+  }, []);
+
+  const filteredRegs = registrations.filter(reg => {
+    const matchEvent = selectedEventId === 'ALL' || reg.event_id === selectedEventId;
+    const matchSearch = reg.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        reg.whatsapp.includes(searchQuery) ||
+                        (reg.registration_members && reg.registration_members.some(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()) || m.ticket_id.toLowerCase().includes(searchQuery.toLowerCase())));
+    return matchEvent && matchSearch;
+  });
+
   return (
-    <div className="bg-white p-6 rounded-xl border border-slate-200">
-      <h3 className="font-bold text-sm">Pendaftaran Real (Modul Registrasi)</h3>
-      <p className="text-xs text-slate-500 mt-1">Siap dikoneksikan ke tabel pendaftaran jemaat.</p>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div>
+          <h3 className="font-bold text-base text-slate-900">Data Pendaftaran Real (Supabase)</h3>
+          <p className="text-xs text-slate-500">Daftar seluruh jemaat & E-Tiket yang telah diterbitkan</p>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-2">
+          <select 
+            value={selectedEventId} 
+            onChange={e => setSelectedEventId(e.target.value)}
+            className="p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold"
+          >
+            <option value="ALL">Semua Acara</option>
+            {events.map(e => (
+              <option key={e.id} value={e.id}>{e.name}</option>
+            ))}
+          </select>
+
+          <button onClick={fetchRegistrations} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-xs font-semibold flex items-center gap-1">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Data
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
+        <Search size={16} className="text-slate-400 ml-1" />
+        <input 
+          type="text" 
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Cari nama jemaat, nomor WhatsApp, atau kode tiket (contoh: TKT-678170)..." 
+          className="w-full text-xs bg-transparent focus:outline-none"
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="p-12 text-center text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
+          <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          Memuat data pendaftaran jemaat dari Supabase...
+        </div>
+      ) : filteredRegs.length === 0 ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500 text-xs space-y-2">
+          <FileText size={36} className="mx-auto text-slate-300" />
+          <p className="font-semibold text-slate-700">Belum Ada Data Pendaftaran</p>
+          <p className="text-slate-400">Pendaftaran publik jemaat akan muncul di sini secara real-time.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredRegs.map(reg => (
+            <div key={reg.id} className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-slate-900">{reg.name}</span>
+                    <span className="text-[10px] bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-full font-semibold">
+                      PJ / Pendaftar Utama
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    📱 {reg.whatsapp} {reg.email && `| ✉️ ${reg.email}`}
+                  </p>
+                </div>
+                <div className="text-left sm:text-right text-xs">
+                  <span className="font-semibold text-teal-800 bg-teal-100 px-2.5 py-1 rounded-md">
+                    {reg.events?.name || 'Event GII Holis'}
+                  </span>
+                  <p className="text-[10px] text-slate-400 mt-1">ID: {reg.id}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Daftar Tiket QR Terbit ({reg.registration_members?.length || 0} Tiket)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {reg.registration_members?.map(mem => (
+                    <div key={mem.id} className={`p-3 rounded-lg border flex justify-between items-center text-xs ${mem.checked_in ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                      <div>
+                        <div className="font-bold text-slate-900">{mem.name}</div>
+                        <div className="text-[10px] font-mono font-bold text-teal-700 mt-0.5">{mem.ticket_id} ({mem.category})</div>
+                      </div>
+                      <div>
+                        {mem.checked_in ? (
+                          <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full border border-emerald-300">
+                            ✓ {mem.check_in_time || 'Checked-In'}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 bg-slate-200 text-slate-600 text-[10px] font-bold rounded-full">
+                            Belum Hadir
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
+// ==========================================
+// MODULE LAINNYA
+// ==========================================
 function ContactsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">CRM Jemaat Database</div>; }
 function DigitalInvitationsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Modul Undangan Digital</div>; }
 function GiftCardsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Modul Gift Cards</div>; }
