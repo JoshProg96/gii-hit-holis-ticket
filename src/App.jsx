@@ -198,22 +198,43 @@ export default function App() {
     senderName: 'Panitia Acara GII Holis'
   });
 
-  // User Role State
-  const [currentRole, setCurrentRole] = useState('SUPER_ADMIN');
+  // User Role State (Default ke CHECKIN_STAFF jika metadata tidak ditemukan)
+  const [currentRole, setCurrentRole] = useState('CHECKIN_STAFF');
 
   // Scanner & Toast
   const [scannerSearchQuery, setScannerSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Check Supabase Auth Session
+  // Check Supabase Auth Session & Set Role Dynamically
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user) {
+        const userEmail = session.user.email;
+        const metaRole = session.user.user_metadata?.role;
+        
+        // Akun Utama Otomatis Super Admin & Pengguna Lain Sesuai Metadata Supabase
+        if (userEmail === 'joshuamerian8@gmail.com') {
+          setCurrentRole('SUPER_ADMIN');
+        } else {
+          setCurrentRole(metaRole || 'CHECKIN_STAFF');
+        }
+      }
       setCheckingAuth(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user) {
+        const userEmail = session.user.email;
+        const metaRole = session.user.user_metadata?.role;
+        
+        if (userEmail === 'joshuamerian8@gmail.com') {
+          setCurrentRole('SUPER_ADMIN');
+        } else {
+          setCurrentRole(metaRole || 'CHECKIN_STAFF');
+        }
+      }
       setCheckingAuth(false);
     });
 
@@ -279,40 +300,52 @@ export default function App() {
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1 scrollbar-thin scrollbar-thumb-slate-700">
           <div className="px-3 py-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Utama</div>
-          <SidebarItem id="dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard Analytics" active={activeTab} setActive={setActiveTab} />
-          <SidebarItem id="events" icon={<Calendar size={18} />} label="Manajemen Acara" active={activeTab} setActive={setActiveTab} badge={events.length} />
-          <SidebarItem id="registrations" icon={<FileText size={18} />} label="Data Pendaftaran" active={activeTab} setActive={setActiveTab} />
+          
+          {/* Menu Khusus Admin (Super Admin & Event Admin) */}
+          {['SUPER_ADMIN', 'EVENT_ADMIN'].includes(currentRole) && (
+            <>
+              <SidebarItem id="dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard Analytics" active={activeTab} setActive={setActiveTab} />
+              <SidebarItem id="events" icon={<Calendar size={18} />} label="Manajemen Acara" active={activeTab} setActive={setActiveTab} badge={events.length} />
+              <SidebarItem id="registrations" icon={<FileText size={18} />} label="Data Pendaftaran" active={activeTab} setActive={setActiveTab} />
+            </>
+          )}
+
+          {/* Menu Check-In Scanner (Dapat Diakses Semua Role) */}
           <SidebarItem id="checkin" icon={<QrCode size={18} />} label="Check-In Scanner QR" active={activeTab} setActive={setActiveTab} highlight />
 
-          <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Jemaat & CRM</div>
-          <SidebarItem id="contacts" icon={<Users size={18} />} label="Kontak & CRM Jemaat" active={activeTab} setActive={setActiveTab} />
-          <SidebarItem id="invitations" icon={<Share2 size={18} />} label="Undangan Digital" active={activeTab} setActive={setActiveTab} />
-          <SidebarItem id="giftcards" icon={<Gift size={18} />} label="Digital Gift Cards" active={activeTab} setActive={setActiveTab} />
-          <SidebarItem id="engagement" icon={<Heart size={18} />} label="Engagement Center" active={activeTab} setActive={setActiveTab} />
+          {/* Menu Terkunci Khusus Super Admin */}
+          {currentRole === 'SUPER_ADMIN' && (
+            <>
+              <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Jemaat & CRM</div>
+              <SidebarItem id="contacts" icon={<Users size={18} />} label="Kontak & CRM Jemaat" active={activeTab} setActive={setActiveTab} />
+              <SidebarItem id="invitations" icon={<Share2 size={18} />} label="Undangan Digital" active={activeTab} setActive={setActiveTab} />
+              <SidebarItem id="giftcards" icon={<Gift size={18} />} label="Digital Gift Cards" active={activeTab} setActive={setActiveTab} />
+              <SidebarItem id="engagement" icon={<Heart size={18} />} label="Engagement Center" active={activeTab} setActive={setActiveTab} />
 
-          <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Otomasi & Pesan</div>
-          <SidebarItem id="email" icon={<Mail size={18} />} label="Kampanye Email" active={activeTab} setActive={setActiveTab} />
-          <SidebarItem id="whatsapp" icon={<MessageSquare size={18} />} label="Integrasi WhatsApp" active={activeTab} setActive={setActiveTab} statusTag="PENDING" />
+              <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Otomasi & Pesan</div>
+              <SidebarItem id="email" icon={<Mail size={18} />} label="Kampanye Email" active={activeTab} setActive={setActiveTab} />
+              <SidebarItem id="whatsapp" icon={<MessageSquare size={18} />} label="Integrasi WhatsApp" active={activeTab} setActive={setActiveTab} statusTag="PENDING" />
 
-          <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Sistem & Pengaturan</div>
-          <SidebarItem id="reports" icon={<BarChart3 size={18} />} label="Laporan & Export" active={activeTab} setActive={setActiveTab} />
-          <SidebarItem id="roles" icon={<Shield size={18} />} label="Pengguna & Akses" active={activeTab} setActive={setActiveTab} />
-          <SidebarItem id="settings" icon={<Settings size={18} />} label="Pengaturan Sistem" active={activeTab} setActive={setActiveTab} />
+              <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Sistem & Pengaturan</div>
+              <SidebarItem id="reports" icon={<BarChart3 size={18} />} label="Laporan & Export" active={activeTab} setActive={setActiveTab} />
+              <SidebarItem id="roles" icon={<Shield size={18} />} label="Pengguna & Akses" active={activeTab} setActive={setActiveTab} />
+              <SidebarItem id="settings" icon={<Settings size={18} />} label="Pengaturan Sistem" active={activeTab} setActive={setActiveTab} />
+            </>
+          )}
         </nav>
 
-        {/* Role Selector & Logout */}
+        {/* Role Badge Terkunci & Logout */}
         <div className="p-3 bg-slate-950 border-t border-slate-800 text-xs space-y-2">
           <div>
-            <label className="block text-slate-400 mb-1 text-[11px]">Mode Akses Saat Ini:</label>
-            <select 
-              value={currentRole} 
-              onChange={(e) => { setCurrentRole(e.target.value); showToast(`Akses diubah ke: ${e.target.value}`); }}
-              className="w-full bg-slate-800 text-white rounded p-1.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
-            >
-              <option value="SUPER_ADMIN">Super Admin (Akses Penuh)</option>
-              <option value="EVENT_ADMIN">Event Admin</option>
-              <option value="CHECKIN_STAFF">Staff Check-In</option>
-            </select>
+            <label className="block text-slate-400 mb-1 text-[11px]">Role & Hak Akses Anda:</label>
+            <div className="w-full bg-slate-800 text-teal-400 font-bold rounded p-2 border border-slate-700 flex items-center justify-between text-xs">
+              <span>
+                {currentRole === 'SUPER_ADMIN' && '🛡️ Super Admin'}
+                {currentRole === 'EVENT_ADMIN' && '📅 Event Admin'}
+                {currentRole === 'CHECKIN_STAFF' && '🎟️ Staff Check-In'}
+              </span>
+              <span className="text-[10px] text-slate-400 font-normal">Terverifikasi</span>
+            </div>
           </div>
 
           <button
