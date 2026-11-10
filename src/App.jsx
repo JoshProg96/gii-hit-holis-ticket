@@ -99,6 +99,8 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [successRegistration, setSuccessRegistration] = useState(null);
+  const [phoneError, setPhoneError] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -114,7 +116,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   useEffect(() => {
     const fetchEvent = async () => {
       setLoadingEvent(true);
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('events')
         .select('*')
         .eq('id', eventId)
@@ -129,6 +131,42 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     if (eventId) fetchEvent();
   }, [eventId]);
 
+  // Handler Input No WhatsApp (Hanya Angka & Auto +62 Format)
+  const handlePhoneChange = (e) => {
+    let rawInput = e.target.value;
+    
+    // Hapus semua karakter non-angka
+    let digitsOnly = rawInput.replace(/\D/g, '');
+    
+    // Jika user mengetik angka 0 di depan (misal 0812...), hapus 0 nya
+    if (digitsOnly.startsWith('62')) {
+      digitsOnly = digitsOnly.substring(2);
+    } else if (digitsOnly.startsWith('0')) {
+      digitsOnly = digitsOnly.substring(1);
+    }
+
+    setFormData(prev => ({ ...prev, whatsapp: digitsOnly }));
+
+    if (digitsOnly.length > 0 && digitsOnly.length < 8) {
+      setPhoneError('Nomor WhatsApp terlalu pendek (min 9-13 digit).');
+    } else {
+      setPhoneError('');
+    }
+  };
+
+  // Handler Input Email & Validasi Sintaks
+  const handleEmailChange = (e) => {
+    const val = e.target.value;
+    setFormData(prev => ({ ...prev, email: val }));
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (val && !emailRegex.test(val)) {
+      setEmailError('Format email tidak valid (contoh: nama@domain.com).');
+    } else {
+      setEmailError('');
+    }
+  };
+
   const handleAddMember = () => {
     setMembers([...members, { name: '', category: 'Dewasa' }]);
   };
@@ -141,8 +179,21 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validasi akhir sebelum submit
+    if (phoneError || emailError) {
+      alert('Mohon perbaiki data kontak yang belum sesuai.');
+      return;
+    }
+
+    if (!formData.whatsapp || formData.whatsapp.length < 8) {
+      setPhoneError('Mohon masukkan nomor WhatsApp yang valid.');
+      return;
+    }
+
     setSubmitting(true);
 
+    const fullFormattedPhone = `+62${formData.whatsapp}`;
     const regId = `REG-${Date.now()}`;
     
     // 1. Insert ke tabel registrations
@@ -150,7 +201,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       id: regId,
       event_id: eventId,
       name: formData.name,
-      whatsapp: formData.whatsapp,
+      whatsapp: fullFormattedPhone,
       email: formData.email,
       notes: formData.notes
     }]);
@@ -186,7 +237,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     setSuccessRegistration({
       regId,
       event: eventData,
-      mainContact: formData,
+      mainContact: { ...formData, whatsapp: fullFormattedPhone },
       tickets: memberPayloads
     });
   };
@@ -223,6 +274,9 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             <h2 className="font-bold text-lg text-emerald-400">Pendaftaran Berhasil!</h2>
             <p className="text-xs text-slate-400">E-Tiket resmi telah terbit untuk kegiatan:</p>
             <h3 className="font-bold text-sm text-white bg-slate-800 p-2 rounded-lg border border-slate-700">{successRegistration.event.name}</h3>
+            {successRegistration.mainContact.email && (
+              <p className="text-[11px] text-teal-400 font-medium"> Salinan tiket juga dikirim ke email: {successRegistration.mainContact.email}</p>
+            )}
           </div>
 
           <div className="space-y-4">
@@ -242,7 +296,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                   </div>
                   <div className="font-bold text-sm text-slate-900">{tkt.name}</div>
                   
-                  {/* GENERATOR KODE QR SEDERHANA */}
                   <img 
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${tkt.ticket_id}`} 
                     alt="QR Code Tiket" 
@@ -271,7 +324,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     );
   }
 
-  // TAMPILAN FORMULIR PENDAFTARAN JEMAAT
   return (
     <div className="min-h-screen bg-slate-900 p-4 md:p-8 flex flex-col items-center justify-center">
       <div className="max-w-xl w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-2xl text-white space-y-6">
@@ -291,14 +343,35 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap Pemohon *</label>
               <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Joshua Merian" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-slate-300 mb-1 font-semibold">No. WhatsApp *</label>
-                <input required type="text" value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} placeholder="08123456789" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 font-bold text-teal-400 text-xs select-none">+62</span>
+                  <input
+                    required
+                    type="text"
+                    inputMode="numeric"
+                    value={formData.whatsapp}
+                    onChange={handlePhoneChange}
+                    placeholder="8123456789"
+                    className="w-full pl-12 pr-3 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono focus:border-teal-500"
+                  />
+                </div>
+                {phoneError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{phoneError}</p>}
               </div>
+
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Email (Opsional)</label>
-                <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="nama@email.com" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
+                <label className="block text-slate-300 mb-1 font-semibold">Email (Disarankan untuk E-Tiket)</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={handleEmailChange}
+                  placeholder="nama@email.com"
+                  className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                />
+                {emailError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{emailError}</p>}
               </div>
             </div>
           </div>
@@ -344,7 +417,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           </div>
 
           <div className="pt-2">
-            <button type="submit" disabled={submitting} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
+            <button type="submit" disabled={submitting || !!phoneError || !!emailError} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
               {submitting ? 'Proses Dapatkan E-Tiket...' : 'Konfirmasi & Terbitkan Tiket QR'}
             </button>
           </div>
