@@ -4,7 +4,7 @@ import {
   Gift, Heart, Send, BarChart3, Shield, Settings, Plus, Search, 
   Download, Upload, CheckCircle, Copy, UserPlus, 
   FileText, Sparkles, Camera, ArrowRight, Lock, Check,
-  Share2, AlertTriangle, LogOut, Menu, X, RefreshCw
+  Share2, AlertTriangle, LogOut, Menu, X, RefreshCw, Ticket, ChevronRight
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -92,6 +92,269 @@ function Login({ onLoginSuccess }) {
 }
 
 // ==========================================
+// COMPONENT: PUBLIC FORM REGISTRATION (JEMAAT)
+// ==========================================
+function PublicRegisterPage({ eventId, onBackToAdmin }) {
+  const [eventData, setEventData] = useState(null);
+  const [loadingEvent, setLoadingEvent] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [successRegistration, setSuccessRegistration] = useState(null);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    whatsapp: '',
+    email: '',
+    notes: ''
+  });
+
+  const [members, setMembers] = useState([
+    { name: '', category: 'Dewasa' }
+  ]);
+
+  useEffect(() => {
+    const fetchEvent = async () => {
+      setLoadingEvent(true);
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+
+      if (data) {
+        setEventData(data);
+      }
+      setLoadingEvent(false);
+    };
+
+    if (eventId) fetchEvent();
+  }, [eventId]);
+
+  const handleAddMember = () => {
+    setMembers([...members, { name: '', category: 'Dewasa' }]);
+  };
+
+  const handleRemoveMember = (index) => {
+    if (members.length > 1) {
+      setMembers(members.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    const regId = `REG-${Date.now()}`;
+    
+    // 1. Insert ke tabel registrations
+    const { error: regError } = await supabase.from('registrations').insert([{
+      id: regId,
+      event_id: eventId,
+      name: formData.name,
+      whatsapp: formData.whatsapp,
+      email: formData.email,
+      notes: formData.notes
+    }]);
+
+    if (regError) {
+      alert(`Gagal mendaftar: ${regError.message}`);
+      setSubmitting(false);
+      return;
+    }
+
+    // 2. Insert anggota rombongan ke registration_members
+    const memberPayloads = members.map((m, idx) => ({
+      id: `MEM-${Date.now()}-${idx}`,
+      registration_id: regId,
+      ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
+      name: m.name || formData.name,
+      category: m.category
+    }));
+
+    const { error: memError } = await supabase.from('registration_members').insert(memberPayloads);
+
+    if (memError) {
+      alert(`Gagal menyimpan data tiket: ${memError.message}`);
+      setSubmitting(false);
+      return;
+    }
+
+    // 3. Update counter registered di tabel events
+    const newRegisteredCount = (eventData.registered || 0) + memberPayloads.length;
+    await supabase.from('events').update({ registered: newRegisteredCount }).eq('id', eventId);
+
+    setSubmitting(false);
+    setSuccessRegistration({
+      regId,
+      event: eventData,
+      mainContact: formData,
+      tickets: memberPayloads
+    });
+  };
+
+  if (loadingEvent) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white space-y-3">
+        <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs text-slate-400">Memuat Formulir Pendaftaran Event...</p>
+      </div>
+    );
+  }
+
+  if (!eventData) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white p-4 text-center">
+        <AlertTriangle size={48} className="text-amber-500 mb-2" />
+        <h3 className="font-bold text-lg">Acara Tidak Ditemukan</h3>
+        <p className="text-xs text-slate-400 mt-1 max-w-sm">Link pendaftaran mungkin sudah kadaluarsa atau tidak valid.</p>
+        <button onClick={onBackToAdmin} className="mt-4 px-4 py-2 bg-teal-600 text-xs font-bold rounded-lg text-white">Kembali ke Dashboard</button>
+      </div>
+    );
+  }
+
+  // TAMPILAN TIKET QR SUKSES
+  if (successRegistration) {
+    return (
+      <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex flex-col items-center justify-center">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl text-white space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-2 border border-emerald-500/30">
+              <CheckCircle size={28} />
+            </div>
+            <h2 className="font-bold text-lg text-emerald-400">Pendaftaran Berhasil!</h2>
+            <p className="text-xs text-slate-400">E-Tiket resmi telah terbit untuk kegiatan:</p>
+            <h3 className="font-bold text-sm text-white bg-slate-800 p-2 rounded-lg border border-slate-700">{successRegistration.event.name}</h3>
+          </div>
+
+          <div className="space-y-4">
+            <div className="text-xs text-slate-400 space-y-1 bg-slate-950 p-3 rounded-lg border border-slate-800">
+              <div>👤 <strong>Kontak Utama:</strong> {successRegistration.mainContact.name} ({successRegistration.mainContact.whatsapp})</div>
+              <div>📅 <strong>Tanggal & Jam:</strong> {successRegistration.event.date} | {successRegistration.event.time}</div>
+              <div>📍 <strong>Lokasi:</strong> {successRegistration.event.venue}</div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider text-center">E-Tiket & Kode QR Anda</h4>
+              {successRegistration.tickets.map((tkt, idx) => (
+                <div key={tkt.id} className="bg-white text-slate-900 p-4 rounded-xl shadow border border-slate-200 flex flex-col items-center text-center space-y-2">
+                  <div className="w-full flex justify-between items-center text-[10px] text-slate-500 font-bold border-b pb-1">
+                    <span>TIKET #{idx + 1}</span>
+                    <span className="text-teal-700">{tkt.category}</span>
+                  </div>
+                  <div className="font-bold text-sm text-slate-900">{tkt.name}</div>
+                  
+                  {/* GENERATOR KODE QR SEDERHANA */}
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${tkt.ticket_id}`} 
+                    alt="QR Code Tiket" 
+                    className="w-36 h-36 border p-1 rounded bg-white shadow-sm"
+                  />
+                  
+                  <div className="font-mono text-xs font-bold text-teal-700 tracking-wider bg-slate-100 px-3 py-1 rounded">
+                    {tkt.ticket_id}
+                  </div>
+                  <p className="text-[10px] text-slate-400">Tunjukkan QR ini kepada petugas pintu masuk</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-2 text-center space-y-2">
+            <button onClick={() => window.print()} className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold border border-slate-700 flex items-center justify-center gap-2">
+              <Download size={14} /> Cetak / Simpan E-Tiket
+            </button>
+            <button onClick={onBackToAdmin} className="text-xs text-teal-400 hover:underline block mx-auto">
+              Kembali ke Dashboard Admin
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // TAMPILAN FORMULIR PENDAFTARAN JEMAAT
+  return (
+    <div className="min-h-screen bg-slate-900 p-4 md:p-8 flex flex-col items-center justify-center">
+      <div className="max-w-xl w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-2xl text-white space-y-6">
+        <div className="border-b border-slate-700 pb-4">
+          <span className="bg-teal-500/20 text-teal-400 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-teal-500/30">Form Pendaftaran Jemaat</span>
+          <h2 className="font-bold text-lg md:text-xl text-white mt-2">{eventData.name}</h2>
+          <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
+            <span>📅 {eventData.date} ({eventData.time})</span>
+            <span>📍 {eventData.venue}</span>
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5 text-xs">
+          <div className="space-y-3">
+            <h4 className="font-bold text-teal-400 text-xs">1. Informasi Kontak Penanggung Jawab</h4>
+            <div>
+              <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap Pemohon *</label>
+              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Joshua Merian" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-300 mb-1 font-semibold">No. WhatsApp *</label>
+                <input required type="text" value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} placeholder="08123456789" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
+              </div>
+              <div>
+                <label className="block text-slate-300 mb-1 font-semibold">Email (Opsional)</label>
+                <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="nama@email.com" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-3 border-t border-slate-700">
+            <div className="flex justify-between items-center">
+              <h4 className="font-bold text-teal-400 text-xs">2. Daftar Anggota / Peserta Hadir</h4>
+              {eventData.allow_family && (
+                <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
+                  <Plus size={14} /> Tambah Anggota
+                </button>
+              )}
+            </div>
+
+            {members.map((member, idx) => (
+              <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-400 text-[10px] shrink-0">
+                  {idx + 1}
+                </div>
+                <input required type="text" value={member.name} onChange={e => {
+                  const updated = [...members];
+                  updated[idx].name = e.target.value;
+                  setMembers(updated);
+                }} placeholder={`Nama Peserta ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                
+                <select value={member.category} onChange={e => {
+                  const updated = [...members];
+                  updated[idx].category = e.target.value;
+                  setMembers(updated);
+                }} className="p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+                  <option value="Dewasa">Dewasa</option>
+                  <option value="Anak-anak">Anak-anak</option>
+                  <option value="Lansia">Lansia</option>
+                </select>
+
+                {members.length > 1 && (
+                  <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-2">
+            <button type="submit" disabled={submitting} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
+              {submitting ? 'Proses Dapatkan E-Tiket...' : 'Konfirmasi & Terbitkan Tiket QR'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
 // MAIN APP COMPONENT
 // ==========================================
 export default function App() {
@@ -105,6 +368,9 @@ export default function App() {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [contacts, setContacts] = useState([]);
   const [registrations, setRegistrations] = useState([]);
+
+  // Direct Public Registration State (via Hash Link)
+  const [publicEventId, setPublicEventId] = useState(null);
   
   const [branding, setBranding] = useState({
     orgName: 'Gereja Injili Indonesia Holis (GII Holis)',
@@ -151,7 +417,20 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Ambil Session Awal
+    // Check jika URL mengakses link pendaftaran publik (#/register/EVT-xxx)
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#/register/')) {
+        const id = hash.replace('#/register/', '');
+        setPublicEventId(id);
+      } else {
+        setPublicEventId(null);
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
@@ -170,7 +449,6 @@ export default function App() {
       setCheckingAuth(false);
     });
 
-    // Handle Perubahan Auth Tanpa Mereset Active Tab saat Focus Window
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         setSession(session);
@@ -193,7 +471,10 @@ export default function App() {
 
     fetchRealEvents();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -225,6 +506,11 @@ export default function App() {
       return reg;
     }));
   };
+
+  // IF ACCESSING PUBLIC REGISTER FORM VIA HASH
+  if (publicEventId) {
+    return <PublicRegisterPage eventId={publicEventId} onBackToAdmin={() => window.location.hash = ''} />;
+  }
 
   if (checkingAuth) {
     return (
@@ -380,7 +666,7 @@ export default function App() {
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50">
           {activeTab === 'dashboard' && <DashboardModule events={events} contacts={contacts} registrations={registrations} setActiveTab={setActiveTab} currentRole={currentRole} />}
-          {activeTab === 'events' && <EventsModule events={events} fetchRealEvents={fetchRealEvents} loadingEvents={loadingEvents} showToast={showToast} />}
+          {activeTab === 'events' && <EventsModule events={events} fetchRealEvents={fetchRealEvents} loadingEvents={loadingEvents} showToast={showToast} setPublicEventId={setPublicEventId} />}
           {activeTab === 'registrations' && <RegistrationsModule registrations={registrations} setRegistrations={setRegistrations} events={events} showToast={showToast} />}
           
           {activeTab === 'checkin' && (
@@ -580,7 +866,7 @@ function MetricCard({ title, value, icon, subtext, bg }) {
 // ==========================================
 // MODULE 2: EVENT MANAGEMENT (REAL DB SUPABASE)
 // ==========================================
-function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
+function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPublicEventId }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isUnlimited, setIsUnlimited] = useState(false);
@@ -656,6 +942,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {events.map(evt => {
             const isUnlim = evt.capacity === null || evt.capacity === 0;
+            const registerUrl = `${window.location.origin}/#/register/${evt.id}`;
             return (
               <div key={evt.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition">
                 <div className="h-32 bg-slate-800 relative">
@@ -690,9 +977,19 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
                       <span className="text-slate-500">Pendaftar: </span>
                       <strong className="text-teal-700 font-bold">{evt.registered}</strong> / {isUnlim ? '∞ Unlimited' : `${evt.capacity} Porsi`}
                     </div>
-                    <button onClick={() => showToast(`URL Publik disalin: https://gii-holis-tickets.web.id/register/${evt.id}`)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg text-xs flex items-center justify-center gap-1 border border-slate-200 w-full sm:w-auto" title="Salin Link Pendaftaran Publik">
-                      <Copy size={14} /> Link Form
-                    </button>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => {
+                        window.location.hash = `#/register/${evt.id}`;
+                      }} className="p-2 bg-teal-50 text-teal-700 hover:bg-teal-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-teal-200">
+                        <Ticket size={14} /> Buka Form Pendaftaran
+                      </button>
+                      <button onClick={() => {
+                        navigator.clipboard.writeText(registerUrl);
+                        showToast(`URL disalin: ${registerUrl}`);
+                      }} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg text-xs flex items-center justify-center gap-1 border border-slate-200" title="Salin Link Pendaftaran Publik">
+                        <Copy size={14} /> Link
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
