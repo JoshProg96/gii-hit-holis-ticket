@@ -99,6 +99,10 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [successRegistration, setSuccessRegistration] = useState(null);
+
+  // Tab Pilihan: 'INDIVIDUAL' atau 'GROUP'
+  const [regType, setRegType] = useState('INDIVIDUAL');
+
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
 
@@ -106,6 +110,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     name: '',
     whatsapp: '',
     email: '',
+    category: 'Dewasa',
     notes: ''
   });
 
@@ -124,6 +129,9 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
       if (data) {
         setEventData(data);
+        if (!data.allow_family) {
+          setRegType('INDIVIDUAL');
+        }
       }
       setLoadingEvent(false);
     };
@@ -131,14 +139,10 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     if (eventId) fetchEvent();
   }, [eventId]);
 
-  // Handler Input No WhatsApp (Hanya Angka & Auto +62 Format)
   const handlePhoneChange = (e) => {
     let rawInput = e.target.value;
-    
-    // Hapus semua karakter non-angka
     let digitsOnly = rawInput.replace(/\D/g, '');
     
-    // Jika user mengetik angka 0 di depan (misal 0812...), hapus 0 nya
     if (digitsOnly.startsWith('62')) {
       digitsOnly = digitsOnly.substring(2);
     } else if (digitsOnly.startsWith('0')) {
@@ -154,7 +158,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     }
   };
 
-  // Handler Input Email & Validasi Sintaks
   const handleEmailChange = (e) => {
     const val = e.target.value;
     setFormData(prev => ({ ...prev, email: val }));
@@ -180,7 +183,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validasi akhir sebelum submit
     if (phoneError || emailError) {
       alert('Mohon perbaiki data kontak yang belum sesuai.');
       return;
@@ -196,7 +198,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const fullFormattedPhone = `+62${formData.whatsapp}`;
     const regId = `REG-${Date.now()}`;
     
-    // 1. Insert ke tabel registrations
+    // 1. Simpan ke tabel registrations
     const { error: regError } = await supabase.from('registrations').insert([{
       id: regId,
       event_id: eventId,
@@ -212,14 +214,25 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
-    // 2. Insert anggota rombongan ke registration_members
-    const memberPayloads = members.map((m, idx) => ({
-      id: `MEM-${Date.now()}-${idx}`,
-      registration_id: regId,
-      ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
-      name: m.name || formData.name,
-      category: m.category
-    }));
+    // 2. Susun daftar tiket anggota
+    let memberPayloads = [];
+    if (regType === 'INDIVIDUAL') {
+      memberPayloads = [{
+        id: `MEM-${Date.now()}-0`,
+        registration_id: regId,
+        ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
+        name: formData.name,
+        category: formData.category
+      }];
+    } else {
+      memberPayloads = members.map((m, idx) => ({
+        id: `MEM-${Date.now()}-${idx}`,
+        registration_id: regId,
+        ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
+        name: m.name || formData.name,
+        category: m.category
+      }));
+    }
 
     const { error: memError } = await supabase.from('registration_members').insert(memberPayloads);
 
@@ -229,7 +242,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
-    // 3. Update counter registered di tabel events
+    // 3. Update counter registered pada events
     const newRegisteredCount = (eventData.registered || 0) + memberPayloads.length;
     await supabase.from('events').update({ registered: newRegisteredCount }).eq('id', eventId);
 
@@ -262,7 +275,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     );
   }
 
-  // TAMPILAN TIKET QR SUKSES
+  // TAMPILAN SUKSES & TIKET QR
   if (successRegistration) {
     return (
       <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex flex-col items-center justify-center">
@@ -275,7 +288,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             <p className="text-xs text-slate-400">E-Tiket resmi telah terbit untuk kegiatan:</p>
             <h3 className="font-bold text-sm text-white bg-slate-800 p-2 rounded-lg border border-slate-700">{successRegistration.event.name}</h3>
             {successRegistration.mainContact.email && (
-              <p className="text-[11px] text-teal-400 font-medium"> Salinan tiket juga dikirim ke email: {successRegistration.mainContact.email}</p>
+              <p className="text-[11px] text-teal-400 font-medium">✉️ Salinan tiket dikirim ke email: {successRegistration.mainContact.email}</p>
             )}
           </div>
 
@@ -324,6 +337,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     );
   }
 
+  // TAMPILAN FORMULIR PENDAFTARAN
   return (
     <div className="min-h-screen bg-slate-900 p-4 md:p-8 flex flex-col items-center justify-center">
       <div className="max-w-xl w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-2xl text-white space-y-6">
@@ -336,12 +350,35 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           </p>
         </div>
 
+        {/* TAB SWITCH: INDIVIDU VS KELUARGA */}
+        {eventData.allow_family && (
+          <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-xl border border-slate-700 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setRegType('INDIVIDUAL')}
+              className={`py-2.5 rounded-lg transition-all ${regType === 'INDIVIDUAL' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+            >
+              👤 Pendaftaran Individu (1 Orang)
+            </button>
+            <button
+              type="button"
+              onClick={() => setRegType('GROUP')}
+              className={`py-2.5 rounded-lg transition-all ${regType === 'GROUP' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+            >
+              👨‍👩‍👧‍👦 Pendaftaran Keluarga / Rombongan
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-5 text-xs">
           <div className="space-y-3">
-            <h4 className="font-bold text-teal-400 text-xs">1. Informasi Kontak Penanggung Jawab</h4>
+            <h4 className="font-bold text-teal-400 text-xs">
+              {regType === 'INDIVIDUAL' ? 'Informasi Data Peserta' : '1. Informasi Kontak Penanggung Jawab'}
+            </h4>
+            
             <div>
-              <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap Pemohon *</label>
-              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Joshua Merian" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
+              <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap Peserta *</label>
+              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Joshua Merian Limas" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -374,47 +411,59 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                 {emailError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{emailError}</p>}
               </div>
             </div>
-          </div>
 
-          <div className="space-y-3 pt-3 border-t border-slate-700">
-            <div className="flex justify-between items-center">
-              <h4 className="font-bold text-teal-400 text-xs">2. Daftar Anggota / Peserta Hadir</h4>
-              {eventData.allow_family && (
-                <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
-                  <Plus size={14} /> Tambah Anggota
-                </button>
-              )}
-            </div>
-
-            {members.map((member, idx) => (
-              <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-400 text-[10px] shrink-0">
-                  {idx + 1}
-                </div>
-                <input required type="text" value={member.name} onChange={e => {
-                  const updated = [...members];
-                  updated[idx].name = e.target.value;
-                  setMembers(updated);
-                }} placeholder={`Nama Peserta ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
-                
-                <select value={member.category} onChange={e => {
-                  const updated = [...members];
-                  updated[idx].category = e.target.value;
-                  setMembers(updated);
-                }} className="p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+            {regType === 'INDIVIDUAL' && (
+              <div>
+                <label className="block text-slate-300 mb-1 font-semibold">Kategori Usia</label>
+                <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500">
                   <option value="Dewasa">Dewasa</option>
                   <option value="Anak-anak">Anak-anak</option>
                   <option value="Lansia">Lansia</option>
                 </select>
-
-                {members.length > 1 && (
-                  <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
-                    ✕
-                  </button>
-                )}
               </div>
-            ))}
+            )}
           </div>
+
+          {/* HANYA TAMPIL JIKA PILIH FORM ROMBONGAN */}
+          {regType === 'GROUP' && (
+            <div className="space-y-3 pt-3 border-t border-slate-700">
+              <div className="flex justify-between items-center">
+                <h4 className="font-bold text-teal-400 text-xs">2. Daftar Anggota / Peserta Hadir</h4>
+                <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
+                  <Plus size={14} /> Tambah Anggota
+                </button>
+              </div>
+
+              {members.map((member, idx) => (
+                <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-400 text-[10px] shrink-0">
+                    {idx + 1}
+                  </div>
+                  <input required type="text" value={member.name} onChange={e => {
+                    const updated = [...members];
+                    updated[idx].name = e.target.value;
+                    setMembers(updated);
+                  }} placeholder={`Nama Peserta ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                  
+                  <select value={member.category} onChange={e => {
+                    const updated = [...members];
+                    updated[idx].category = e.target.value;
+                    setMembers(updated);
+                  }} className="p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+                    <option value="Dewasa">Dewasa</option>
+                    <option value="Anak-anak">Anak-anak</option>
+                    <option value="Lansia">Lansia</option>
+                  </select>
+
+                  {members.length > 1 && (
+                    <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="pt-2">
             <button type="submit" disabled={submitting || !!phoneError || !!emailError} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
