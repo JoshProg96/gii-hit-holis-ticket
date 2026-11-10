@@ -374,7 +374,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               }}
               className={`py-2.5 rounded-lg transition-all ${regType === 'GROUP' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
             >
-              👨‍gsub‍👧‍👦 Pendaftaran Keluarga / Rombongan
+              👨‍👩‍👧‍👦 Pendaftaran Keluarga / Rombongan
             </button>
           </div>
         )}
