@@ -1302,29 +1302,152 @@ function ReportsModule({ events, registrations, contacts }) {
 }
 
 // MODULE 12: USER ROLES & PRIVACY
-function RolesModule({ currentRole, setCurrentRole }) {
+// MODULE 12: USER ROLES & PRIVACY (Hanya Akses Super Admin)
+function RolesModule({ currentRole, setCurrentRole, showToast }) {
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [selectedRole, setSelectedRole] = useState('CHECKIN_STAFF');
+  const [loading, setLoading] = useState(false);
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    // Mendaftarkan user baru ke Supabase Auth dengan User Metadata Role
+    const { data, error } = await supabase.auth.signUp({
+      email: newUserEmail,
+      password: newUserPassword,
+      options: {
+        data: {
+          role: selectedRole, // Otomatis tersimpan ke raw_user_meta_data
+        },
+      },
+    });
+
+    setLoading(false);
+
+    if (error) {
+      showToast(`Gagal membuat user: ${error.message}`, 'error');
+    } else {
+      showToast(`Berhasil menambahkan ${newUserEmail} sebagai ${selectedRole}!`, 'success');
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setSelectedRole('CHECKIN_STAFF');
+      setShowAddModal(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-base font-bold text-slate-900">Manajemen Peran (RBAC) & Privasi Data</h3>
-        <p className="text-xs text-slate-500">Kepatuhan UU Pelindungan Data Pribadi (UU PDP No. 27/2022)</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Manajemen Peran (RBAC) & Privasi Data</h3>
+          <p className="text-xs text-slate-500">Kelola pengguna, penetapan role, dan kepatuhan UU PDP No. 27/2022</p>
+        </div>
+        
+        {/* Tombol Tambah User Khusus Super Admin */}
+        <button 
+          onClick={() => setShowAddModal(true)} 
+          className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-2 shadow"
+        >
+          <UserPlus size={16} /> + Tambah Pengguna / Staff Baru
+        </button>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
-        <h4 className="font-bold text-slate-800 text-xs border-b pb-2">Hirarki Peran Pengguna</h4>
+        <h4 className="font-bold text-slate-800 text-xs border-b pb-2">Hirarki Peran & Hak Akses Pengguna</h4>
         
         <div className="space-y-2 text-xs">
-          <div className="p-3 border rounded bg-slate-50">
-            <strong className="text-slate-900">1. Super Admin:</strong> Akses penuh ke seluruh fitur, database, dan pengaturan server.
+          <div className="p-3 border rounded bg-slate-50 flex items-center justify-between">
+            <div>
+              <strong className="text-slate-900">1. 🛡️ Super Admin:</strong> Akses penuh ke seluruh fitur, database, CRM, dan pengaturan server.
+            </div>
+            <span className="px-2 py-0.5 rounded bg-teal-100 text-teal-800 text-[10px] font-bold">Akses Anda Saat Ini</span>
           </div>
           <div className="p-3 border rounded bg-slate-50">
-            <strong className="text-slate-900">2. Event Admin:</strong> Membuat dan mengelola pendaftaran acara & tiket.
+            <strong className="text-slate-900">2. 📅 Event Admin:</strong> Hanya dapat mengelola acara, pendaftaran, dan melihat daftar tiket.
           </div>
           <div className="p-3 border rounded bg-slate-50">
-            <strong className="text-slate-900">3. Staff Check-In:</strong> Hanya memiliki akses ke Scanner QR & pencarian kehadiran.
+            <strong className="text-slate-900">3. 🎟️ Staff Check-In:</strong> Hanya memiliki akses ke Scanner QR & verifikasi kehadiran di pintu masuk.
           </div>
         </div>
       </div>
+
+      {/* MODAL FORM TAMBAH USER BARU */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200">
+            <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <UserPlus size={18} className="text-teal-400" /> Tambah Staff / Pengguna Baru
+              </h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Email Akun Baru *</label>
+                <input 
+                  type="email" 
+                  required 
+                  value={newUserEmail} 
+                  onChange={(e) => setNewUserEmail(e.target.value)} 
+                  placeholder="staff@giiholis.org" 
+                  className="w-full p-2.5 border rounded-lg border-slate-300 focus:ring-1 focus:ring-teal-500" 
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Password Sementara *</label>
+                <input 
+                  type="password" 
+                  required 
+                  minLength={6}
+                  value={newUserPassword} 
+                  onChange={(e) => setNewUserPassword(e.target.value)} 
+                  placeholder="Minimal 6 karakter" 
+                  className="w-full p-2.5 border rounded-lg border-slate-300 focus:ring-1 focus:ring-teal-500" 
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Pilih Role & Hak Akses *</label>
+                <select 
+                  value={selectedRole} 
+                  onChange={(e) => setSelectedRole(e.target.value)} 
+                  className="w-full p-2.5 border rounded-lg border-slate-300 font-medium text-slate-800 focus:ring-1 focus:ring-teal-500"
+                >
+                  <option value="CHECKIN_STAFF">🎟️ Staff Check-In (Hanya Scanner QR)</option>
+                  <option value="EVENT_ADMIN">📅 Event Admin (Kelola Acara & Pendaftaran)</option>
+                  <option value="SUPER_ADMIN">🛡️ Super Admin (Akses Penuh Sistem)</option>
+                </select>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded text-[11px] text-slate-600">
+                💡 User baru yang dibuat akan langsung mendapatkan role yang dipilih secara otomatis tanpa perlu set SQL manual lagi di Supabase.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <button 
+                  type="button" 
+                  onClick={() => setShowAddModal(false)} 
+                  className="px-4 py-2 border rounded-lg text-slate-600 hover:bg-slate-50"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="px-5 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 shadow disabled:opacity-50"
+                >
+                  {loading ? 'Memproses...' : 'Buat User Baru'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
