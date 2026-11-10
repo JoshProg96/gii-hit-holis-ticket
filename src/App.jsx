@@ -151,6 +151,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Ambil Session Awal
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
@@ -165,33 +166,26 @@ export default function App() {
         }
         
         setCurrentRole(determinedRole);
-        if (determinedRole === 'CHECKIN_STAFF') {
-          setActiveTab('checkin');
-        } else {
-          setActiveTab('dashboard');
-        }
       }
       setCheckingAuth(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user) {
-        const userEmail = session.user.email;
-        const metaRole = session.user.user_metadata?.role;
-        
-        let determinedRole = 'CHECKIN_STAFF';
-        if (userEmail === 'joshuamerian8@gmail.com') {
-          determinedRole = 'SUPER_ADMIN';
-        } else if (metaRole) {
-          determinedRole = metaRole;
-        }
+    // Handle Perubahan Auth Tanpa Mereset Active Tab saat Focus Window
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        setSession(session);
+        if (session?.user) {
+          const userEmail = session.user.email;
+          const metaRole = session.user.user_metadata?.role;
+          
+          let determinedRole = 'CHECKIN_STAFF';
+          if (userEmail === 'joshuamerian8@gmail.com') {
+            determinedRole = 'SUPER_ADMIN';
+          } else if (metaRole) {
+            determinedRole = metaRole;
+          }
 
-        setCurrentRole(determinedRole);
-        if (determinedRole === 'CHECKIN_STAFF') {
-          setActiveTab('checkin');
-        } else {
-          setActiveTab('dashboard');
+          setCurrentRole(determinedRole);
         }
       }
       setCheckingAuth(false);
@@ -612,7 +606,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast }) {
       checked_in: 0,
       status: 'Aktif',
       allow_family: newEvent.allowFamily,
-      banner: 'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&q=80&w=1000',
       description: newEvent.description || 'Kegiatan Ibadah Resmi GII Holis Bandung.'
     };
 
