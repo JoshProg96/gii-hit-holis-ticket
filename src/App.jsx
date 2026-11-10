@@ -114,10 +114,8 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     notes: ''
   });
 
-  // Anggota 1 otomatis sinkron dengan nama Penanggung Jawab
-  const [members, setMembers] = useState([
-    { name: '', category: 'Dewasa' }
-  ]);
+  // Anggota Tambahan Murni (Mulai dari Orang Tambahan)
+  const [members, setMembers] = useState([]);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -139,21 +137,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
     if (eventId) fetchEvent();
   }, [eventId]);
-
-  // Handler nama PJ (Otomatis update Anggota 1 di mode Rombongan jika belum diubah manual)
-  const handleMainNameChange = (e) => {
-    const val = e.target.value;
-    setFormData(prev => ({ ...prev, name: val }));
-
-    setMembers(prevMembers => {
-      const updated = [...prevMembers];
-      // Jika anggota 1 kosong atau sama dengan nama PJ sebelumnya, otomatis ikut terupdate
-      if (updated.length > 0) {
-        updated[0] = { ...updated[0], name: val };
-      }
-      return updated;
-    });
-  };
 
   const handlePhoneChange = (e) => {
     let rawInput = e.target.value;
@@ -191,9 +174,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   };
 
   const handleRemoveMember = (index) => {
-    if (members.length > 1) {
-      setMembers(members.filter((_, i) => i !== index));
-    }
+    setMembers(members.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
@@ -214,7 +195,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const fullFormattedPhone = `+62${formData.whatsapp}`;
     const regId = `REG-${Date.now()}`;
     
-    // 1. Simpan ke tabel registrations
+    // 1. Simpan ke tabel registrations (Master Penanggung Jawab)
     const { error: regError } = await supabase.from('registrations').insert([{
       id: regId,
       event_id: eventId,
@@ -230,32 +211,30 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
-    // 2. Susun daftar tiket anggota
-    let memberPayloads = [];
-    if (regType === 'INDIVIDUAL') {
-      memberPayloads = [{
+    // 2. LOGIKA BACKEND: Dapatkan 1 Tiket untuk Penanggung Jawab Utama
+    let memberPayloads = [
+      {
         id: `MEM-${Date.now()}-0`,
         registration_id: regId,
         ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
         name: formData.name,
-        category: formData.category
-      }];
-    } else {
-      memberPayloads = members
-        .filter(m => m.name.trim() !== '') // Filter agar baris kosong tidak terdaftar
+        category: formData.category || 'Dewasa'
+      }
+    ];
+
+    // Jika tipe Pendaftaran Rombongan, gabungkan dengan anggota tambahan
+    if (regType === 'GROUP') {
+      const extraMembers = members
+        .filter(m => m.name.trim() !== '')
         .map((m, idx) => ({
-          id: `MEM-${Date.now()}-${idx}`,
+          id: `MEM-${Date.now()}-${idx + 1}`,
           registration_id: regId,
           ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
           name: m.name,
           category: m.category
         }));
-    }
 
-    if (memberPayloads.length === 0) {
-      alert('Mohon isi minimal 1 nama peserta yang hadir.');
-      setSubmitting(false);
-      return;
+      memberPayloads = [...memberPayloads, ...extraMembers];
     }
 
     const { error: memError } = await supabase.from('registration_members').insert(memberPayloads);
@@ -266,7 +245,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
-    // 3. Update counter registered pada events
+    // 3. Update counter kuota registered pada events
     const newRegisteredCount = (eventData.registered || 0) + memberPayloads.length;
     await supabase.from('events').update({ registered: newRegisteredCount }).eq('id', eventId);
 
@@ -328,7 +307,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               {successRegistration.tickets.map((tkt, idx) => (
                 <div key={tkt.id} className="bg-white text-slate-900 p-4 rounded-xl shadow border border-slate-200 flex flex-col items-center text-center space-y-2">
                   <div className="w-full flex justify-between items-center text-[10px] text-slate-500 font-bold border-b pb-1">
-                    <span>TIKET #{idx + 1}</span>
+                    <span>TIKET #{idx + 1} {idx === 0 ? '(Penanggung Jawab)' : ''}</span>
                     <span className="text-teal-700">{tkt.category}</span>
                   </div>
                   <div className="font-bold text-sm text-slate-900">{tkt.name}</div>
@@ -379,17 +358,23 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-xl border border-slate-700 text-xs font-bold">
             <button
               type="button"
-              onClick={() => setRegType('INDIVIDUAL')}
+              onClick={() => {
+                setRegType('INDIVIDUAL');
+                setMembers([]);
+              }}
               className={`py-2.5 rounded-lg transition-all ${regType === 'INDIVIDUAL' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
             >
               👤 Pendaftaran Individu (1 Orang)
             </button>
             <button
               type="button"
-              onClick={() => setRegType('GROUP')}
+              onClick={() => {
+                setRegType('GROUP');
+                if (members.length === 0) setMembers([{ name: '', category: 'Dewasa' }]);
+              }}
               className={`py-2.5 rounded-lg transition-all ${regType === 'GROUP' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
             >
-              👨‍👩‍👧‍👦 Pendaftaran Keluarga / Rombongan
+              👨‍gsub‍👧‍👦 Pendaftaran Keluarga / Rombongan
             </button>
           </div>
         )}
@@ -402,7 +387,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             
             <div>
               <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap Penanggung Jawab *</label>
-              <input required type="text" value={formData.name} onChange={handleMainNameChange} placeholder="Contoh: Joshua Merian Limas" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
+              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Joshua Merian Limas" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -452,40 +437,47 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           {regType === 'GROUP' && (
             <div className="space-y-3 pt-3 border-t border-slate-700">
               <div className="flex justify-between items-center">
-                <h4 className="font-bold text-teal-400 text-xs">2. Daftar Anggota / Peserta Hadir</h4>
+                <div>
+                  <h4 className="font-bold text-teal-400 text-xs">2. Anggota Tambahan yang Diikutkan</h4>
+                  <p className="text-[10px] text-slate-400">Penanggung Jawab (Joshua) otomatis terhitung dapat 1 Tiket.</p>
+                </div>
                 <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
                   <Plus size={14} /> Tambah Anggota
                 </button>
               </div>
 
-              {members.map((member, idx) => (
-                <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-400 text-[10px] shrink-0">
-                    {idx + 1}
-                  </div>
-                  <input required type="text" value={member.name} onChange={e => {
-                    const updated = [...members];
-                    updated[idx].name = e.target.value;
-                    setMembers(updated);
-                  }} placeholder={idx === 0 ? "Nama Penanggung Jawab" : `Nama Peserta ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
-                  
-                  <select value={member.category} onChange={e => {
-                    const updated = [...members];
-                    updated[idx].category = e.target.value;
-                    setMembers(updated);
-                  }} className="p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs">
-                    <option value="Dewasa">Dewasa</option>
-                    <option value="Anak-anak">Anak-anak</option>
-                    <option value="Lansia">Lansia</option>
-                  </select>
+              {members.length === 0 ? (
+                <div className="p-3 bg-slate-900/50 rounded-lg border border-dashed border-slate-700 text-slate-400 text-[11px] text-center">
+                  Belum ada anggota tambahan. Klik "+ Tambah Anggota" di atas jika membawa keluarga/teman.
+                </div>
+              ) : (
+                members.map((member, idx) => (
+                  <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-teal-400 text-[10px] shrink-0">
+                      +{idx + 1}
+                    </div>
+                    <input required type="text" value={member.name} onChange={e => {
+                      const updated = [...members];
+                      updated[idx].name = e.target.value;
+                      setMembers(updated);
+                    }} placeholder={`Nama Anggota Tambahan ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                    
+                    <select value={member.category} onChange={e => {
+                      const updated = [...members];
+                      updated[idx].category = e.target.value;
+                      setMembers(updated);
+                    }} className="p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+                      <option value="Dewasa">Dewasa</option>
+                      <option value="Anak-anak">Anak-anak</option>
+                      <option value="Lansia">Lansia</option>
+                    </select>
 
-                  {members.length > 1 && (
                     <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
                       ✕
                     </button>
-                  )}
-                </div>
-              ))}
+                  </div>
+                ))
+              )}
             </div>
           )}
 
