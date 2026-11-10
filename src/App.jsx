@@ -691,7 +691,6 @@ export default function App() {
               <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Sistem & Pengaturan</div>
               <SidebarItem id="reports" icon={<BarChart3 size={18} />} label="Laporan & Export" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
               <SidebarItem id="roles" icon={<Shield size={18} />} label="Pengguna & Akses" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
-              <SidebarItem id="settings" icon={<Settings size={18} />} label="Pengaturan Sistem" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
             </>
           )}
         </nav>
@@ -741,7 +740,6 @@ export default function App() {
               {activeTab === 'whatsapp' && 'Integrasi WhatsApp'}
               {activeTab === 'reports' && 'Laporan & Export'}
               {activeTab === 'roles' && 'Pengguna & Akses'}
-              {activeTab === 'settings' && 'Pengaturan Sistem'}
             </h2>
           </div>
 
@@ -798,8 +796,6 @@ export default function App() {
               </div>
             )
           )}
-          
-          {activeTab === 'settings' && <SettingsModule />}
         </div>
       </main>
     </div>
@@ -832,7 +828,7 @@ function SidebarItem({ id, icon, label, active, setActive, badge, highlight, sta
         </span>
       )}
       {statusTag && (
-        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
           {statusTag}
         </span>
       )}
@@ -889,64 +885,65 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
                         <span>📅 {evt.date}</span>
                         <span>📍 {evt.venue}</span>
                       </p>
-                  </div>
-
-                  <div className="w-full md:w-48 space-y-1 shrink-0">
-                    <div className="flex justify-between text-xs font-semibold text-slate-700">
-                      <span>Terisi: {evt.registered} / {isUnlimited ? '∞ Unlimited' : evt.capacity}</span>
-                      {!isUnlimited && <span>{pct}%</span>}
                     </div>
-                    {!isUnlimited && (
-                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                        <div className="bg-teal-600 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }}></div>
+
+                    <div className="w-full md:w-48 space-y-1 shrink-0">
+                      <div className="flex justify-between text-xs font-semibold text-slate-700">
+                        <span>Terisi: {evt.registered} / {isUnlimited ? '∞ Unlimited' : evt.capacity}</span>
+                        {!isUnlimited && <span>{pct}%</span>}
                       </div>
-                    )}
+                      {!isUnlimited && (
+                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                          <div className="bg-teal-600 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }}></div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 shadow-sm space-y-4 flex flex-col justify-between">
-        <div>
-          <h3 className="font-bold text-slate-800 text-xs md:text-sm pb-3 border-b border-slate-100 flex items-center gap-2">
-            <Sparkles size={18} className="text-amber-500" /> Aksi Cepat Operasional
-          </h3>
-          
-          <div className="mt-4 space-y-2.5">
-            {['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) && (
-              <button onClick={() => setActiveTab('checkin')} className="w-full text-left p-3 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 flex items-center justify-between transition">
-                <div className="flex items-center gap-3">
-                  <QrCode size={20} className="text-teal-700 shrink-0" />
-                  <div>
-                    <div className="font-bold text-xs">Buka Scanner Kamera QR</div>
-                    <div className="text-[11px] text-teal-700">Check-in peserta di pintu masuk</div>
-                  </div>
-                </div>
-                <ArrowRight size={16} className="text-teal-700 shrink-0" />
-              </button>
-            )}
-
-            {currentRole !== 'CHECKIN_STAFF' && (
-              <button onClick={() => setActiveTab('events')} className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition">
-                <div className="flex items-center gap-3">
-                  <Plus size={20} className="text-slate-600 shrink-0" />
-                  <div>
-                    <div className="font-bold text-xs">Buat Acara Baru</div>
-                    <div className="text-[11px] text-slate-500">Tambah kegiatan ibadah atau seminar</div>
-                  </div>
-                </div>
-                <ArrowRight size={16} className="text-slate-400 shrink-0" />
-              </button>
+                );
+              })
             )}
           </div>
         </div>
 
-        <div className="p-3 bg-slate-100 rounded-lg text-xs text-slate-600 border border-slate-200 flex items-center gap-2">
-          <Lock size={16} className="text-slate-400 shrink-0" />
-          <span>Sistem penyimpanan terenkripsi & aman.</span>
+        <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 shadow-sm space-y-4 flex flex-col justify-between">
+          <div>
+            <h3 className="font-bold text-slate-800 text-xs md:text-sm pb-3 border-b border-slate-100 flex items-center gap-2">
+              <Sparkles size={18} className="text-amber-500" /> Aksi Cepat Operasional
+            </h3>
+            
+            <div className="mt-4 space-y-2.5">
+              {['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) && (
+                <button onClick={() => setActiveTab('checkin')} className="w-full text-left p-3 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 flex items-center justify-between transition">
+                  <div className="flex items-center gap-3">
+                    <QrCode size={20} className="text-teal-700 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">Buka Scanner Kamera QR</div>
+                      <div className="text-[11px] text-teal-700">Check-in peserta di pintu masuk</div>
+                    </div>
+                  </div>
+                  <ArrowRight size={16} className="text-teal-700 shrink-0" />
+                </button>
+              )}
+
+              {currentRole !== 'CHECKIN_STAFF' && (
+                <button onClick={() => setActiveTab('events')} className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition">
+                  <div className="flex items-center gap-3">
+                    <Plus size={20} className="text-slate-600 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">Buat Acara Baru</div>
+                      <div className="text-[11px] text-slate-500">Tambah kegiatan ibadah atau seminar</div>
+                    </div>
+                  </div>
+                  <ArrowRight size={16} className="text-slate-400 shrink-0" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-100 rounded-lg text-xs text-slate-600 border border-slate-200 flex items-center gap-2">
+            <Lock size={16} className="text-slate-400 shrink-0" />
+            <span>Sistem penyimpanan terenkripsi & aman.</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1664,7 +1661,7 @@ function RegistrationsModule({ events, showToast }) {
                           </button>
                         )}
                       </div>
-                  </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -2058,4 +2055,3 @@ function EngagementModule() { return <OngoingModuleTitle title="Engagement Cente
 function EmailModule() { return <OngoingModuleTitle title="Kampanye Email Otomatis" />; }
 function WhatsAppModule() { return <OngoingModuleTitle title="Integrasi WhatsApp Gateway" />; }
 function ReportsModule() { return <OngoingModuleTitle title="Laporan & Export Data" />; }
-function SettingsModule() { return <OngoingModuleTitle title="Pengaturan Sistem & Branding" />; }
