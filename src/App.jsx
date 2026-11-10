@@ -729,10 +729,10 @@ export default function App() {
             </button>
             <h2 className="text-sm md:text-xl font-bold text-slate-800 capitalize truncate">
               {activeTab === 'dashboard' && 'Dashboard Overview'}
-              {activeTab === 'events' && 'Kelola Acara Real (Supabase)'}
-              {activeTab === 'registrations' && 'Data Pendaftaran Real (Supabase)'}
+              {activeTab === 'events' && 'Manajemen Acara'}
+              {activeTab === 'registrations' && 'Data Pendaftaran Jemaat'}
               {activeTab === 'checkin' && 'Scanner Tiket QR'}
-              {activeTab === 'contacts' && 'Database Jemaat (CRM)'}
+              {activeTab === 'contacts' && 'Database Jemaat'}
               {activeTab === 'invitations' && 'Undangan Digital'}
               {activeTab === 'giftcards' && 'Digital Gift Card'}
               {activeTab === 'engagement' && 'Engagement Center'}
@@ -745,10 +745,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
-            <span className="hidden sm:flex px-2.5 py-1 rounded-full text-[11px] font-semibold bg-teal-50 text-teal-700 border border-teal-200 items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
-              Supabase DB Connected
-            </span>
             {['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) && (
               <button 
                 onClick={() => setActiveTab('checkin')}
@@ -856,14 +852,14 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
         <MetricCard title="Total Jemaat (CRM)" value={contacts.length} icon={<Users className="text-blue-600" size={22} />} subtext="Terdaftar di database pusat" bg="bg-blue-50" />
         <MetricCard title="Peserta Terdaftar" value={totalRegisteredMembers} icon={<FileText className="text-teal-600" size={22} />} subtext="Dari seluruh event aktif" bg="bg-teal-50" />
         <MetricCard title="Kehadiran (Checked-In)" value={totalCheckedIn} icon={<CheckCircle className="text-emerald-600" size={22} />} subtext={`${totalRegisteredMembers ? Math.round((totalCheckedIn/totalRegisteredMembers)*100) : 0}% Tingkat kehadiran`} bg="bg-emerald-50" />
-        <MetricCard title="Acara Aktif Real" value={events.filter(e => e.status === 'Aktif').length} icon={<Calendar className="text-indigo-600" size={22} />} subtext="Tersimpan di Supabase" bg="bg-indigo-50" />
+        <MetricCard title="Acara Aktif" value={events.filter(e => e.status === 'Aktif').length} icon={<Calendar className="text-indigo-600" size={22} />} subtext="Tersimpan di database" bg="bg-indigo-50" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4 md:p-5 shadow-sm space-y-4">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100">
             <h3 className="font-bold text-slate-800 text-xs md:text-sm flex items-center gap-2">
-              <Calendar size={18} className="text-teal-600" /> Acara Mendatang & Kuota Real
+              <Calendar size={18} className="text-teal-600" /> Acara Mendatang & Kuota
             </h3>
             <button onClick={() => setActiveTab('events')} className="text-xs text-teal-600 hover:underline font-semibold">
               Kelola Semua Acara →
@@ -873,7 +869,7 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
           <div className="space-y-3">
             {events.length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                Belum ada acara real tersimpan. Silakan klik "Kelola Semua Acara" untuk membuat acara pertama!
+                Belum ada acara tersimpan. Silakan klik "Kelola Semua Acara" untuk membuat acara pertama!
               </div>
             ) : (
               events.map(evt => {
@@ -934,8 +930,8 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
                 <div className="flex items-center gap-3">
                   <Plus size={20} className="text-slate-600 shrink-0" />
                   <div>
-                    <div className="font-bold text-xs">Buat Acara Baru (Real DB)</div>
-                    <div className="text-[11px] text-slate-500">Simpan ke Supabase PostgreSQL</div>
+                    <div className="font-bold text-xs">Buat Acara Baru</div>
+                    <div className="text-[11px] text-slate-500">Tambah kegiatan ibadah atau seminar</div>
                   </div>
                 </div>
                 <ArrowRight size={16} className="text-slate-400 shrink-0" />
@@ -945,7 +941,7 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
 
           <div className="p-3 bg-slate-100 rounded-lg text-xs text-slate-600 border border-slate-200 flex items-center gap-2">
             <Lock size={16} className="text-slate-400 shrink-0" />
-            <span>Terhubung langsung dengan Supabase PostgreSQL Cloud.</span>
+            <span>Sistem penyimpanan terenkripsi & aman.</span>
           </div>
         </div>
       </div>
@@ -967,7 +963,7 @@ function MetricCard({ title, value, icon, subtext, bg }) {
 }
 
 // ==========================================
-// MODULE 2: EVENT MANAGEMENT (REAL DB SUPABASE)
+// MODULE 2: EVENT MANAGEMENT
 // ==========================================
 function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPublicEventId }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1005,7 +1001,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
     if (error) {
       showToast(`Gagal menyimpan event: ${error.message}`, 'error');
     } else {
-      showToast('Acara REAL berhasil disimpan ke Supabase Database!');
+      showToast('Acara berhasil disimpan!');
       setShowCreateModal(false);
       setNewEvent({ name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, description: '' });
       setIsUnlimited(false);
@@ -1017,7 +1013,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-slate-900">Daftar Acara Real (Supabase DB)</h3>
+          <h3 className="text-base font-bold text-slate-900">Daftar Acara</h3>
           <p className="text-xs text-slate-500">Kelola formulir pendaftaran dan kapasitas tempat duduk real-time</p>
         </div>
         <div className="flex gap-2">
@@ -1025,7 +1021,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
             <RefreshCw size={16} className={loadingEvents ? 'animate-spin' : ''} />
           </button>
           <button onClick={() => setShowCreateModal(true)} className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow w-full sm:w-auto">
-            <Plus size={16} /> Buat Acara Real Baru
+            <Plus size={16} /> Buat Acara Baru
           </button>
         </div>
       </div>
@@ -1033,13 +1029,13 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       {loadingEvents ? (
         <div className="p-12 text-center text-slate-500 text-xs">
           <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-          Memuat data dari Supabase...
+          Memuat data acara...
         </div>
       ) : events.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500 text-xs space-y-3">
           <Calendar size={36} className="mx-auto text-slate-300" />
-          <p className="font-semibold text-slate-700">Belum Ada Acara Tersimpan di Supabase</p>
-          <p className="text-slate-400">Klik tombol "Buat Acara Real Baru" di atas untuk menambahkan acara perdana kamu.</p>
+          <p className="font-semibold text-slate-700">Belum Ada Acara</p>
+          <p className="text-slate-400">Klik tombol "Buat Acara Baru" di atas untuk menambahkan acara perdana.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1105,7 +1101,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 my-8">
             <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
-              <h3 className="font-bold text-sm">Tambah Acara Real (Tersimpan di Supabase)</h3>
+              <h3 className="font-bold text-sm">Tambah Acara Baru</h3>
               <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
             <form onSubmit={handleCreateEvent} className="p-6 space-y-4 text-xs">
@@ -1178,7 +1174,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 border rounded-lg text-slate-600">Batal</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">
-                  {saving ? 'Menyimpan ke DB...' : 'Simpan Acara Real'}
+                  {saving ? 'Menyimpan...' : 'Simpan Acara'}
                 </button>
               </div>
             </form>
@@ -1253,14 +1249,12 @@ function CheckInModule({ showToast }) {
     setLoadingCheckIn(true);
     setScanResult(null);
 
-    // Pembersihan kode tiket jika QR membawa prefix URL atau string ekstra
     let cleanTicketId = rawTicketId.trim();
     if (cleanTicketId.includes('TKT-')) {
       const match = cleanTicketId.match(/TKT-\d+/);
       if (match) cleanTicketId = match[0];
     }
 
-    // 1. Cari data tiket di Supabase
     const { data: ticket, error } = await supabase
       .from('registration_members')
       .select('*, registrations(name, whatsapp, event_id)')
@@ -1278,7 +1272,6 @@ function CheckInModule({ showToast }) {
       return;
     }
 
-    // 2. Cek apakah tiket sudah pernah di-scan
     if (ticket.checked_in) {
       setScanResult({
         status: 'ALREADY_USED',
@@ -1291,7 +1284,6 @@ function CheckInModule({ showToast }) {
       return;
     }
 
-    // 3. Update status tiket jadi Checked-In
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
     
     const { error: updateError } = await supabase
@@ -1311,7 +1303,6 @@ function CheckInModule({ showToast }) {
       return;
     }
 
-    // 4. Update counter checked_in di tabel events
     if (ticket.registrations?.event_id) {
       const { data: eventData } = await supabase
         .from('events')
@@ -1400,7 +1391,7 @@ function CheckInModule({ showToast }) {
             {loadingCheckIn ? (
               <div className="text-center py-8 space-y-2">
                 <div className="w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-xs text-slate-500 font-medium">Memverifikasi ke Database Supabase...</p>
+                <p className="text-xs text-slate-500 font-medium">Memverifikasi data...</p>
               </div>
             ) : !scanResult ? (
               <div className="text-center py-8 text-slate-400 space-y-2">
@@ -1735,7 +1726,7 @@ function RegistrationsModule({ events, showToast }) {
 // ==========================================
 // MODULE LAINNYA
 // ==========================================
-function ContactsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">CRM Jemaat Database</div>; }
+function ContactsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Database Jemaat</div>; }
 function DigitalInvitationsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Modul Undangan Digital</div>; }
 function GiftCardsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Modul Gift Cards</div>; }
 function EngagementModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Engagement Center</div>; }
