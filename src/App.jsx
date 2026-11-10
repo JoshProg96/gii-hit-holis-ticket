@@ -137,6 +137,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     name: '',
     whatsapp: '',
     email: '',
+    sessionTime: 'Kebaktian 1 | 07.30 WIB Acara Peresmian',
     category: 'Dewasa',
     notes: ''
   });
@@ -240,14 +241,15 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     }
 
     const regId = `REG-${Date.now()}`;
-    
+    const combinedNotes = `[Sesi: ${formData.sessionTime}] ${formData.notes || ''}`.trim();
+
     const { error: regError } = await supabase.from('registrations').insert([{
       id: regId,
       event_id: eventId,
       name: cleanInputName,
       whatsapp: fullFormattedPhone,
       email: formData.email,
-      notes: formData.notes
+      notes: combinedNotes
     }]);
 
     if (regError) {
@@ -297,8 +299,8 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
         toEmail: formData.email,
         name: cleanInputName,
         tickets: memberPayloads,
-        eventName: eventData.name,
-        eventDate: `${eventData.date} (${eventData.time})`,
+        eventName: `${eventData.name} (${formData.sessionTime})`,
+        eventDate: eventData.date,
         eventVenue: eventData.venue
       });
     }
@@ -343,6 +345,9 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             <h2 className="font-bold text-lg text-emerald-400">Pendaftaran Berhasil!</h2>
             <p className="text-xs text-slate-400">Total {successRegistration.tickets.length} E-Tiket resmi terbit untuk kegiatan:</p>
             <h3 className="font-bold text-sm text-white bg-slate-800 p-2 rounded-lg border border-slate-700">{successRegistration.event.name}</h3>
+            <p className="text-xs text-teal-300 font-semibold bg-teal-950/80 p-2 rounded border border-teal-800/60">
+              📌 {formData.sessionTime}
+            </p>
             {formData.email && (
               <div className="p-2 bg-teal-500/10 border border-teal-500/30 rounded-lg text-[11px] text-teal-300 font-medium">
                 📧 E-Tiket otomatis dikirimkan ke email <strong>{formData.email}</strong>
@@ -353,7 +358,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           <div className="space-y-4">
             <div className="text-xs text-slate-400 space-y-1 bg-slate-950 p-3 rounded-lg border border-slate-800">
               <div>👤 <strong>Penanggung Jawab:</strong> {successRegistration.mainContact.name} ({successRegistration.mainContact.whatsapp})</div>
-              <div>📅 <strong>Tanggal & Jam:</strong> {successRegistration.event.date} | {successRegistration.event.time}</div>
+              <div>📅 <strong>Tanggal:</strong> {successRegistration.event.date}</div>
               <div>📍 <strong>Lokasi:</strong> {successRegistration.event.venue}</div>
             </div>
 
@@ -395,11 +400,23 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   return (
     <div className="min-h-screen bg-slate-900 p-4 md:p-8 flex flex-col items-center justify-center">
       <div className="max-w-xl w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-2xl text-white space-y-6">
-        <div className="border-b border-slate-700 pb-4">
-          <span className="bg-teal-500/20 text-teal-400 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-teal-500/30">Form Pendaftaran Jemaat</span>
-          <h2 className="font-bold text-lg md:text-xl text-white mt-2">{eventData.name}</h2>
-          <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-            <span>📅 {eventData.date} ({eventData.time})</span>
+        
+        {/* HEADER & KATA-KATA PENGANTAR FLEKSIBEL (OTOMATIS DARI SUPABASE DATABASE) */}
+        <div className="border-b border-slate-700 pb-4 space-y-3">
+          <span className="bg-teal-500/20 text-teal-400 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-teal-500/30">
+            Form Pendaftaran Jemaat
+          </span>
+          <h2 className="font-bold text-lg md:text-xl text-white mt-1">{eventData.name}</h2>
+
+          {/* DRAFT PENGANTAR OTOMATIS BERDASARKAN EVENT.DESCRIPTION */}
+          {eventData.description && (
+            <div className="text-xs text-slate-300 bg-slate-950/70 p-4 rounded-xl border border-slate-800 leading-relaxed whitespace-pre-line font-normal space-y-2">
+              {eventData.description}
+            </div>
+          )}
+
+          <p className="text-xs text-slate-400 flex items-center gap-2 pt-1">
+            <span>📅 {eventData.date}</span>
             <span>📍 {eventData.venue}</span>
           </p>
         </div>
@@ -430,6 +447,43 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5 text-xs">
+          
+          {/* PILIHAN JADWAL KEBAKTIAN (RADIO BUTTON) */}
+          <div className="space-y-2 bg-slate-950/80 p-4 rounded-xl border border-slate-700">
+            <label className="block text-teal-400 font-bold text-xs uppercase tracking-wide">
+              Mendaftar Ibadah Peresmian / Sesi Kebaktian: *
+            </label>
+            <div className="space-y-2 pt-1">
+              <label className="flex items-center gap-3 p-3 bg-slate-900 border border-slate-700 rounded-lg cursor-pointer hover:border-teal-500 transition">
+                <input 
+                  type="radio" 
+                  name="sessionTime" 
+                  value="Kebaktian 1 | 07.30 WIB Acara Peresmian"
+                  checked={formData.sessionTime === 'Kebaktian 1 | 07.30 WIB Acara Peresmian'}
+                  onChange={e => setFormData({...formData, sessionTime: e.target.value})}
+                  className="w-4 h-4 text-teal-500 focus:ring-teal-500"
+                />
+                <span className="font-semibold text-slate-200 text-xs">
+                  Kebaktian 1 | 07.30 WIB Acara Peresmian
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 bg-slate-900 border border-slate-700 rounded-lg cursor-pointer hover:border-teal-500 transition">
+                <input 
+                  type="radio" 
+                  name="sessionTime" 
+                  value="Kebaktian 2 | 10.00 WIB Replay Video Acara Peresmian"
+                  checked={formData.sessionTime === 'Kebaktian 2 | 10.00 WIB Replay Video Acara Peresmian'}
+                  onChange={e => setFormData({...formData, sessionTime: e.target.value})}
+                  className="w-4 h-4 text-teal-500 focus:ring-teal-500"
+                />
+                <span className="font-semibold text-slate-200 text-xs">
+                  Kebaktian 2 | 10.00 WIB Replay Video Acara Peresmian
+                </span>
+              </label>
+            </div>
+          </div>
+
           <div className="space-y-3">
             <h4 className="font-bold text-teal-400 text-xs">
               {regType === 'INDIVIDUAL' ? 'Informasi Data Peserta' : '1. Informasi Kontak Penanggung Jawab'}
@@ -476,7 +530,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                 <label className="block text-slate-300 mb-1 font-semibold">Kategori Usia</label>
                 <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500">
                   <option value="Dewasa">Dewasa</option>
-                  <option value="Anak-anak">Anak-anak</option>
+                  <option value="Pemuda / Remaja">Pemuda / Remaja</option>
                   <option value="Lansia">Lansia</option>
                 </select>
               </div>
@@ -517,7 +571,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                       setMembers(updated);
                     }} className="p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs">
                       <option value="Dewasa">Dewasa</option>
-                      <option value="Anak-anak">Anak-anak</option>
+                      <option value="Pemuda / Remaja">Pemuda / Remaja</option>
                       <option value="Lansia">Lansia</option>
                     </select>
 
@@ -1226,8 +1280,8 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
               </div>
 
               <div>
-                <label className="block font-semibold mb-1 text-slate-700">Deskripsi Singkat Acara</label>
-                <textarea rows={2} value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})} placeholder="Penjelasan acara..." className="w-full p-2.5 border rounded-lg border-slate-300"></textarea>
+                <label className="block font-semibold mb-1 text-slate-700">Kata-kata Pengantar / Deskripsi Acara</label>
+                <textarea rows={4} value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})} placeholder="Masukkan kata-kata pengantar panjang, ayat Alkitab, atau pengumuman..." className="w-full p-2.5 border rounded-lg border-slate-300 font-sans"></textarea>
               </div>
 
               <div className="flex items-center gap-2 pt-2">
@@ -1678,6 +1732,11 @@ function RegistrationsModule({ events, showToast }) {
                   <p className="text-xs text-slate-500 mt-0.5">
                     📱 {reg.whatsapp} {reg.email && `| ✉️ ${reg.email}`}
                   </p>
+                  {reg.notes && (
+                    <p className="text-[11px] text-teal-700 font-medium mt-1 bg-teal-50 px-2 py-0.5 rounded border border-teal-100 w-fit">
+                      {reg.notes}
+                    </p>
+                  )}
                 </div>
                 <div className="text-left sm:text-right text-xs">
                   <span className="font-semibold text-teal-800 bg-teal-100 px-2.5 py-1 rounded-md">
