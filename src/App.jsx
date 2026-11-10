@@ -1471,7 +1471,7 @@ function CheckInModule({ showToast }) {
 }
 
 // ==========================================
-// MODULE 4: DATA REGISTRASI & PENDAFTARAN (REAL SUPABASE DB + MANUAL CHECK-IN & POPUP QR)
+// MODULE 4: DATA REGISTRASI & PENDAFTARAN JEMAAT
 // ==========================================
 function RegistrationsModule({ events, showToast }) {
   const [registrations, setRegistrations] = useState([]);
@@ -1504,14 +1504,12 @@ function RegistrationsModule({ events, showToast }) {
     fetchRegistrations();
   }, []);
 
-  // FITUR 1: HANDLER CHECK-IN MANUAL PETUGAS
   const handleManualCheckIn = async (member, eventId) => {
     if (processingId) return;
     setProcessingId(member.id);
 
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
 
-    // Update status checked_in di Supabase
     const { error } = await supabase
       .from('registration_members')
       .update({ 
@@ -1526,7 +1524,6 @@ function RegistrationsModule({ events, showToast }) {
       return;
     }
 
-    // Update counter checked_in di tabel events jika ada eventId
     if (eventId) {
       const { data: eventData } = await supabase
         .from('events')
@@ -1544,7 +1541,6 @@ function RegistrationsModule({ events, showToast }) {
 
     if (showToast) showToast(`Berhasil Check-In Manual: ${member.name} (${member.ticket_id})`);
     
-    // Refresh lokal state agar tampilan terupdate seketika
     setRegistrations(prevRegs => prevRegs.map(reg => ({
       ...reg,
       registration_members: reg.registration_members.map(m => 
@@ -1567,7 +1563,7 @@ function RegistrationsModule({ events, showToast }) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div>
-          <h3 className="font-bold text-base text-slate-900">Data Pendaftaran Real (Supabase)</h3>
+          <h3 className="font-bold text-base text-slate-900">Data Pendaftaran Jemaat</h3>
           <p className="text-xs text-slate-500">Daftar seluruh jemaat & E-Tiket yang telah diterbitkan</p>
         </div>
         
@@ -1606,13 +1602,13 @@ function RegistrationsModule({ events, showToast }) {
       {loading ? (
         <div className="p-12 text-center text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
           <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-          Memuat data pendaftaran jemaat dari Supabase...
+          Memuat data pendaftaran jemaat...
         </div>
       ) : filteredRegs.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500 text-xs space-y-2">
           <FileText size={36} className="mx-auto text-slate-300" />
           <p className="font-semibold text-slate-700">Belum Ada Data Pendaftaran</p>
-          <p className="text-slate-400">Pendaftaran publik jemaat akan muncul di sini secara real-time.</p>
+          <p className="text-slate-400">Pendaftaran publik jemaat akan muncul di sini secara otomatis.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -1651,7 +1647,6 @@ function RegistrationsModule({ events, showToast }) {
                           <div className="text-[10px] font-mono font-bold text-teal-700 mt-0.5">{mem.ticket_id} ({mem.category})</div>
                         </div>
                         
-                        {/* FITUR 2: POPUP DISPLAY QR CODE */}
                         <button 
                           onClick={() => setActiveQrModal({ member: mem, eventName: reg.events?.name })}
                           className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-md shadow-sm transition" 
@@ -1661,7 +1656,6 @@ function RegistrationsModule({ events, showToast }) {
                         </button>
                       </div>
 
-                      {/* STATUS & ACTION BUTTON */}
                       <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center">
                         {mem.checked_in ? (
                           <span className="w-full text-center px-2 py-1 bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded-md border border-emerald-300">
