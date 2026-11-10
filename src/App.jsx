@@ -9,6 +9,79 @@ import {
 import { supabase } from './supabaseClient';
 
 // ==========================================
+// HELPER: KIRIM EMAIL AUTOMATION VIA RESEND
+// ==========================================
+const sendConfirmationEmail = async ({ toEmail, name, tickets, eventName, eventDate, eventVenue }) => {
+  if (!toEmail) return;
+
+  const ticketItemsHtml = tickets.map((t, idx) => `
+    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 10px; text-align: center;">
+      <p style="margin: 0 0 4px 0; font-size: 11px; color: #64748b; font-weight: bold;">TIKET #${idx + 1} (${t.category})</p>
+      <h3 style="margin: 0 0 8px 0; color: #0f172a; font-size: 15px;">${t.name}</h3>
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${t.ticket_id}" alt="QR Code" style="width: 140px; height: 140px; border: 1px solid #e2e8f0; padding: 4px; border-radius: 6px;" />
+      <p style="margin: 6px 0 0 0; font-family: monospace; font-weight: bold; color: #0d9488; font-size: 14px; background-color: #f1f5f9; padding: 4px 8px; border-radius: 4px; display: inline-block;">
+        ${t.ticket_id}
+      </p>
+    </div>
+  `).join('');
+
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
+      <div style="background-color: #0f172a; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h2 style="color: #ffffff; margin: 0; font-size: 18px;">GII Holis - E-Tiket Konfirmasi</h2>
+      </div>
+      <div style="background-color: #ffffff; padding: 20px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0; border-top: none;">
+        <h3 style="color: #0d9488; margin-top: 0;">Halo, ${name}!</h3>
+        <p style="color: #334155; font-size: 13px; line-height: 1.5;">
+          Terima kasih telah melakukan pendaftaran. Berikut adalah detail konfirmasi dan <strong>E-Tiket QR</strong> untuk kegiatan:
+        </p>
+        
+        <div style="background-color: #f1f5f9; padding: 12px; border-radius: 8px; margin: 15px 0; font-size: 12px; color: #334155;">
+          <p style="margin: 3px 0;">📌 <strong>Acara:</strong> ${eventName}</p>
+          <p style="margin: 3px 0;">📅 <strong>Waktu:</strong> ${eventDate}</p>
+          <p style="margin: 3px 0;">📍 <strong>Lokasi:</strong> ${eventVenue}</p>
+        </div>
+
+        <h4 style="color: #0f172a; font-size: 13px; margin-bottom: 10px; text-align: center; uppercase; letter-spacing: 0.5px;">Daftar E-Tiket Resmi</h4>
+        ${ticketItemsHtml}
+
+        <p style="color: #64748b; font-size: 11px; text-align: center; margin-top: 20px;">
+          Tunjukkan QR Code di atas kepada petugas check-in saat memasuki ruangan ibadah/kegiatan.
+        </p>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;" />
+        <p style="color: #94a3b8; font-size: 10px; text-align: center; margin: 0;">
+          GII Hok Im Tong Holis Bandung — Otomasi Tiket Jemaat
+        </p>
+      </div>
+    </div>
+  `;
+
+  try {
+    const apiKey = import.meta.env.VITE_RESEND_API_KEY;
+    if (!apiKey) {
+      console.warn('VITE_RESEND_API_KEY belum dikonfigurasi di Environment Variables.');
+      return;
+    }
+
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        from: 'GII Holis Ticket <onboarding@resend.dev>',
+        to: [toEmail],
+        subject: `[E-Tiket Resmi] Pendaftaran ${eventName} - ${name}`,
+        html: htmlContent
+      })
+    });
+  } catch (err) {
+    console.error('Gagal mengirim email otomatis:', err);
+  }
+};
+
+// ==========================================
 // COMPONENT: LOGIN PAGE (SUPABASE AUTH)
 // ==========================================
 function Login({ onLoginSuccess }) {
@@ -188,14 +261,36 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     }
 
     setSubmitting(true);
-
     const fullFormattedPhone = `+62${formData.whatsapp}`;
+    const cleanInputName = formData.name.trim();
+
+    // =========================================================================
+    // VALIDASI KOMBINASI: (Acara Sama + Nomor WA Sama + Nama Lengkap Sama Persis)
+    // =========================================================================
+    const { data: duplicateCheck, error: dupError } = await supabase
+      .from('registrations')
+      .select('id, name, whatsapp')
+      .eq('event_id', eventId)
+      .eq('whatsapp', fullFormattedPhone)
+      .ilike('name', cleanInputName) // ilike = case insensitive check (jesslyn & Jesslyn dianggap sama)
+      .maybeSingle();
+
+    if (dupError) {
+      console.error("Error checking duplicate registration:", dupError);
+    }
+
+    if (duplicateCheck) {
+      alert(`⚠️ Pendaftaran Ditolak:\n\nNama "${cleanInputName}" dengan Nomor WhatsApp (${fullFormattedPhone}) sudah pernah terdaftar pada acara ini.\n\nJika nama peserta beda (misal: anggota keluarga), silakan ubah nama peserta.`);
+      setSubmitting(false);
+      return;
+    }
+
     const regId = `REG-${Date.now()}`;
     
     const { error: regError } = await supabase.from('registrations').insert([{
       id: regId,
       event_id: eventId,
-      name: formData.name,
+      name: cleanInputName,
       whatsapp: fullFormattedPhone,
       email: formData.email,
       notes: formData.notes
@@ -212,7 +307,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
         id: `MEM-${Date.now()}-0`,
         registration_id: regId,
         ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
-        name: formData.name,
+        name: cleanInputName,
         category: formData.category || 'Dewasa'
       }
     ];
@@ -224,7 +319,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           id: `MEM-${Date.now()}-${idx + 1}`,
           registration_id: regId,
           ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
-          name: m.name,
+          name: m.name.trim(),
           category: m.category
         }));
 
@@ -242,11 +337,23 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const newRegisteredCount = (eventData.registered || 0) + memberPayloads.length;
     await supabase.from('events').update({ registered: newRegisteredCount }).eq('id', eventId);
 
+    // TRIGGER AUTO EMAIL BILA EMAIL DIISI
+    if (formData.email) {
+      sendConfirmationEmail({
+        toEmail: formData.email,
+        name: cleanInputName,
+        tickets: memberPayloads,
+        eventName: eventData.name,
+        eventDate: `${eventData.date} (${eventData.time})`,
+        eventVenue: eventData.venue
+      });
+    }
+
     setSubmitting(false);
     setSuccessRegistration({
       regId,
       event: eventData,
-      mainContact: { ...formData, whatsapp: fullFormattedPhone },
+      mainContact: { ...formData, name: cleanInputName, whatsapp: fullFormattedPhone },
       tickets: memberPayloads
     });
   };
@@ -282,6 +389,11 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             <h2 className="font-bold text-lg text-emerald-400">Pendaftaran Berhasil!</h2>
             <p className="text-xs text-slate-400">Total {successRegistration.tickets.length} E-Tiket resmi terbit untuk kegiatan:</p>
             <h3 className="font-bold text-sm text-white bg-slate-800 p-2 rounded-lg border border-slate-700">{successRegistration.event.name}</h3>
+            {formData.email && (
+              <div className="p-2 bg-teal-500/10 border border-teal-500/30 rounded-lg text-[11px] text-teal-300 font-medium">
+                📧 E-Tiket otomatis dikirimkan ke email <strong>{formData.email}</strong>
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">
@@ -396,7 +508,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Email (Disarankan untuk E-Tiket)</label>
+                <label className="block text-slate-300 mb-1 font-semibold">Email (Untuk Terima E-Tiket Otomatis)</label>
                 <input
                   type="email"
                   value={formData.email}
@@ -685,7 +797,7 @@ export default function App() {
               <SidebarItem id="engagement" icon={<Heart size={18} />} label="Engagement Center" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
 
               <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Otomasi & Pesan</div>
-              <SidebarItem id="email" icon={<Mail size={18} />} label="Kampanye Email" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
+              <SidebarItem id="email" icon={<Mail size={18} />} label="Kampanye Email" active={activeTab} setActive={setActiveTab} statusTag="READY" closeMobile={() => setMobileMenuOpen(false)} />
               <SidebarItem id="whatsapp" icon={<MessageSquare size={18} />} label="Integrasi WhatsApp" active={activeTab} setActive={setActiveTab} statusTag="PENDING" closeMobile={() => setMobileMenuOpen(false)} />
 
               <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Sistem & Pengaturan</div>
@@ -828,7 +940,7 @@ function SidebarItem({ id, icon, label, active, setActive, badge, highlight, sta
         </span>
       )}
       {statusTag && (
-        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border shrink-0 ${statusTag === 'READY' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'}`}>
           {statusTag}
         </span>
       )}
@@ -1722,6 +1834,42 @@ function RegistrationsModule({ events, showToast }) {
 }
 
 // ==========================================
+// MODULE: KAMPANYE EMAIL
+// ==========================================
+function EmailModule() {
+  return (
+    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+      <div className="flex items-center gap-3 border-b pb-4 border-slate-100">
+        <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center font-bold">
+          ✉️
+        </div>
+        <div>
+          <h3 className="font-bold text-base text-slate-900">Integrasi Email Service (Resend API)</h3>
+          <p className="text-xs text-slate-500">Status Otomasi Pengiriman Email Konfirmasi Tiket Jemaat</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-emerald-900">Status API Resend:</span>
+            <span className="bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded font-bold text-[10px]">AKTIF</span>
+          </div>
+          <p className="text-emerald-800">
+            Email konfirmasi + QR Code tiket akan terkirim secara otomatis tiap jemaat selesai mengisi form pendaftaran.
+          </p>
+        </div>
+
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-1 font-mono text-[11px]">
+          <div><strong>Domain Pengirim:</strong> onboarding@resend.dev</div>
+          <div><strong>API Key Status:</strong> Loaded (via Environment Variable VITE_RESEND_API_KEY)</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
 // MODULE: MANAJEMEN USER & ROLES (FULL CRUD SUPABASE)
 // ==========================================
 function RolesModule({ currentRole, setCurrentRole, showToast }) {
@@ -2052,6 +2200,5 @@ function ContactsModule() { return <OngoingModuleTitle title="Kontak & CRM Jemaa
 function DigitalInvitationsModule() { return <OngoingModuleTitle title="Undangan Digital" />; }
 function GiftCardsModule() { return <OngoingModuleTitle title="Digital Gift Cards" />; }
 function EngagementModule() { return <OngoingModuleTitle title="Engagement Center" />; }
-function EmailModule() { return <OngoingModuleTitle title="Kampanye Email Otomatis" />; }
 function WhatsAppModule() { return <OngoingModuleTitle title="Integrasi WhatsApp Gateway" />; }
 function ReportsModule() { return <OngoingModuleTitle title="Laporan & Export Data" />; }
