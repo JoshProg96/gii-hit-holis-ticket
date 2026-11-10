@@ -6,6 +6,7 @@ import {
   FileText, Sparkles, Camera, ArrowRight, Lock, Check,
   Share2, AlertTriangle, LogOut, Menu, X, RefreshCw, Ticket, ChevronRight
 } from 'lucide-react';
+import { Html5QrcodeScanner } from 'https://esm.sh/html5-qrcode';
 import { supabase } from './supabaseClient';
 
 // ==========================================
@@ -439,7 +440,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               <div className="flex justify-between items-center">
                 <div>
                   <h4 className="font-bold text-teal-400 text-xs">2. Anggota Tambahan yang Diikutkan</h4>
-                  <p className="text-[10px] text-slate-400">Penanggung Jawab (Joshua) otomatis terhitung dapat 1 Tiket.</p>
+                  <p className="text-[10px] text-slate-400">Penanggung Jawab otomatis terhitung dapat 1 Tiket.</p>
                 </div>
                 <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
                   <Plus size={14} /> Tambah Anggota
@@ -521,7 +522,6 @@ export default function App() {
   });
 
   const [currentRole, setCurrentRole] = useState('CHECKIN_STAFF');
-  const [scannerSearchQuery, setScannerSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
 
   const fetchRealEvents = async () => {
@@ -555,7 +555,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Check jika URL mengakses link pendaftaran publik (#/register/EVT-xxx)
     const handleHashChange = () => {
       const hash = window.location.hash;
       if (hash.startsWith('#/register/')) {
@@ -623,26 +622,6 @@ export default function App() {
   const showToast = (msg, type = 'success') => {
     setToastMessage({ msg, type });
     setTimeout(() => setToastMessage(null), 3500);
-  };
-
-  const handleCheckInMember = (regId, ticketId) => {
-    setRegistrations(prev => prev.map(reg => {
-      if (reg.id === regId) {
-        const updatedMembers = reg.members.map(m => {
-          if (m.ticketId === ticketId) {
-            if (m.checkedIn) {
-              showToast(`Tiket ${m.name} SUDAH TERPAKAI pada ${m.checkInTime}`, 'error');
-              return m;
-            }
-            showToast(`Berhasil Check-In: ${m.name} (${m.ticketId})`, 'success');
-            return { ...m, checkedIn: true, checkInTime: new Date().toLocaleString('id-ID') };
-          }
-          return m;
-        });
-        return { ...reg, members: updatedMembers };
-      }
-      return reg;
-    }));
   };
 
   // IF ACCESSING PUBLIC REGISTER FORM VIA HASH
@@ -809,7 +788,7 @@ export default function App() {
           
           {activeTab === 'checkin' && (
             ['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) ? (
-              <CheckInModule registrations={registrations} handleCheckInMember={handleCheckInMember} scannerSearchQuery={scannerSearchQuery} setScannerSearchQuery={setScannerSearchQuery} />
+              <CheckInModule showToast={showToast} />
             ) : (
               <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-center text-rose-700 space-y-2">
                 <h3 className="font-bold text-sm">⛔ Akses Ditolak</h3>
@@ -882,8 +861,8 @@ function SidebarItem({ id, icon, label, active, setActive, badge, highlight, sta
 // MODULE 1: DASHBOARD
 // ==========================================
 function DashboardModule({ events, contacts, registrations, setActiveTab, currentRole }) {
-  const totalRegisteredMembers = registrations.reduce((acc, r) => acc + r.members.length, 0);
-  const totalCheckedIn = registrations.reduce((acc, r) => acc + r.members.filter(m => m.checkedIn).length, 0);
+  const totalRegisteredMembers = registrations.reduce((acc, r) => acc + (r.members ? r.members.length : 0), 0);
+  const totalCheckedIn = registrations.reduce((acc, r) => acc + (r.members ? r.members.filter(m => m.checkedIn).length : 0), 0);
 
   return (
     <div className="space-y-6">
@@ -1225,22 +1204,252 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 }
 
 // ==========================================
-// MODULE LAINNYA
+// MODULE 3: CHECK-IN SCANNER QR REAL
 // ==========================================
-function RegistrationsModule({ registrations, setRegistrations, events, showToast }) {
+function CheckInModule({ showToast }) {
+  const [scanResult, setScanResult] = useState(null);
+  const [loadingCheckIn, setLoadingCheckIn] = useState(false);
+  const [manualTicketInput, setManualTicketInput] = useState('');
+  const [recentCheckIns, setRecentCheckIns] = useState([]);
+
+  useEffect(() => {
+    // Inisialisasi Scanner Kamera via CDN
+    const scanner = new Html5QrcodeScanner('reader', {
+      qrbox: { width: 250, height: 250 },
+      fps: 10,
+    }, false);
+
+    scanner.render(
+      (decodedText) => {
+        handleProcessCheckIn(decodedText.trim());
+      },
+      (error) => {
+        // Abaikan frame error baca QR
+      }
+    );
+
+    return () => {
+      scanner.clear().catch(err => console.error("Error clearing scanner:", err));
+    };
+  }, []);
+
+  const handleProcessCheckIn = async (ticketId) => {
+    if (loadingCheckIn) return;
+    setLoadingCheckIn(true);
+    setScanResult(null);
+
+    // 1. Cari data tiket di Supabase
+    const { data: ticket, error } = await supabase
+      .from('registration_members')
+      .select('*, registrations(name, whatsapp, event_id)')
+      .eq('ticket_id', ticketId)
+      .single();
+
+    if (error || !ticket) {
+      setScanResult({
+        status: 'INVALID',
+        message: `Tiket "${ticketId}" Tidak Ditemukan!`,
+        ticketId
+      });
+      if (showToast) showToast(`Tiket ${ticketId} tidak valid!`, 'error');
+      setLoadingCheckIn(false);
+      return;
+    }
+
+    // 2. Cek apakah tiket sudah pernah di-scan
+    if (ticket.checked_in) {
+      setScanResult({
+        status: 'ALREADY_USED',
+        message: `TIKET SUDAH TERPAKAI!`,
+        ticket,
+        checkInTime: ticket.check_in_time
+      });
+      if (showToast) showToast(`Tiket ${ticket.name} sudah dipakai pada ${ticket.check_in_time}`, 'error');
+      setLoadingCheckIn(false);
+      return;
+    }
+
+    // 3. Update status tiket jadi Checked-In
+    const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+    
+    const { error: updateError } = await supabase
+      .from('registration_members')
+      .update({ 
+        checked_in: true, 
+        check_in_time: nowTime 
+      })
+      .eq('id', ticket.id);
+
+    if (updateError) {
+      setScanResult({
+        status: 'ERROR',
+        message: `Gagal Update Status: ${updateError.message}`
+      });
+      setLoadingCheckIn(false);
+      return;
+    }
+
+    // 4. Update counter checked_in di tabel events
+    if (ticket.registrations?.event_id) {
+      const { data: eventData } = await supabase
+        .from('events')
+        .select('checked_in')
+        .eq('id', ticket.registrations.event_id)
+        .single();
+
+      if (eventData) {
+        await supabase
+          .from('events')
+          .update({ checked_in: (eventData.checked_in || 0) + 1 })
+          .eq('id', ticket.registrations.event_id);
+      }
+    }
+
+    const successData = {
+      status: 'SUCCESS',
+      message: 'VERIFIKASI BERHASIL',
+      ticket: { ...ticket, checked_in: true, check_in_time: nowTime }
+    };
+
+    setScanResult(successData);
+    setRecentCheckIns(prev => [successData.ticket, ...prev.slice(0, 4)]);
+    if (showToast) showToast(`Check-in Berhasil: ${ticket.name} (${ticket.ticket_id})`);
+    
+    setLoadingCheckIn(false);
+  };
+
+  const handleManualSubmit = (e) => {
+    e.preventDefault();
+    if (manualTicketInput.trim()) {
+      handleProcessCheckIn(manualTicketInput.trim().toUpperCase());
+      setManualTicketInput('');
+    }
+  };
+
   return (
-    <div className="bg-white p-6 rounded-xl border border-slate-200">
-      <h3 className="font-bold text-sm">Pendaftaran Real (Modul Registrasi)</h3>
-      <p className="text-xs text-slate-500 mt-1">Siap dikoneksikan ke tabel pendaftaran jemaat.</p>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div>
+          <h3 className="font-bold text-base text-slate-900">Scanner Tiket QR (Pintu Masuk)</h3>
+          <p className="text-xs text-slate-500">Arahkan kamera ke QR Code E-Tiket jemaat untuk verifikasi kehadiran real-time</p>
+        </div>
+        <span className="px-3 py-1 bg-teal-50 text-teal-700 text-xs font-bold rounded-full border border-teal-200 w-fit">
+          🟢 Scanner Aktif
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* KAMERA SCANNER */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Kamera Pemindai</h4>
+          
+          <div className="overflow-hidden rounded-xl border-2 border-slate-200 bg-slate-900 min-h-[280px] flex items-center justify-center relative">
+            <div id="reader" className="w-full"></div>
+          </div>
+
+          <form onSubmit={handleManualSubmit} className="pt-2">
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Atau Ketik Kode Tiket Manual:</label>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={manualTicketInput}
+                onChange={e => setManualTicketInput(e.target.value)}
+                placeholder="Contoh: TKT-678170" 
+                className="flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold uppercase focus:ring-1 focus:ring-teal-500"
+              />
+              <button type="submit" disabled={loadingCheckIn} className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg disabled:opacity-50">
+                Verifikasi
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* HASIL VERIFIKASI */}
+        <div className="space-y-4">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[280px] flex flex-col justify-center">
+            <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider mb-3">Hasil Pemindaian Terbaru</h4>
+
+            {loadingCheckIn ? (
+              <div className="text-center py-8 space-y-2">
+                <div className="w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="text-xs text-slate-500 font-medium">Memverifikasi ke Database Supabase...</p>
+              </div>
+            ) : !scanResult ? (
+              <div className="text-center py-8 text-slate-400 space-y-2">
+                <QrCode size={48} className="mx-auto text-slate-300" />
+                <p className="text-xs">Scan QR tiket di sebelah kiri untuk melihat status verifikasi</p>
+              </div>
+            ) : scanResult.status === 'SUCCESS' ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-center space-y-3">
+                <div className="w-12 h-12 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto text-xl font-bold shadow-md">
+                  ✓
+                </div>
+                <div>
+                  <span className="bg-emerald-200 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">VERIFIKASI BERHASIL</span>
+                  <h3 className="font-bold text-lg text-slate-900 mt-1">{scanResult.ticket.name}</h3>
+                  <p className="text-xs text-slate-600 font-mono">Kode Tiket: {scanResult.ticket.ticket_id} ({scanResult.ticket.category})</p>
+                </div>
+                <div className="text-xs text-slate-500 pt-2 border-t border-emerald-200">
+                  Waktu Masuk: <strong>{scanResult.ticket.check_in_time}</strong>
+                </div>
+              </div>
+            ) : scanResult.status === 'ALREADY_USED' ? (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-5 text-center space-y-3">
+                <div className="w-12 h-12 bg-rose-500 text-white rounded-full flex items-center justify-center mx-auto text-xl font-bold shadow-md">
+                  ✕
+                </div>
+                <div>
+                  <span className="bg-rose-200 text-rose-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">TIKET SUDAH TERPAKAI</span>
+                  <h3 className="font-bold text-lg text-slate-900 mt-1">{scanResult.ticket.name}</h3>
+                  <p className="text-xs text-rose-700 font-medium mt-1">
+                    Tiket ini sudah pernah di-scan sebelumnya pada <strong>{scanResult.checkInTime}</strong>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-center space-y-3">
+                <div className="w-12 h-12 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto text-xl font-bold shadow-md">
+                  !
+                </div>
+                <div>
+                  <span className="bg-amber-200 text-amber-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">TIKET INVALID</span>
+                  <p className="text-xs text-amber-800 font-medium mt-1">{scanResult.message}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RIWAYAT SCAN */}
+          {recentCheckIns.length > 0 && (
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+              <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Riwayat Scan Sesi Ini</h5>
+              <div className="space-y-1.5">
+                {recentCheckIns.map(item => (
+                  <div key={item.id} className="p-2 bg-slate-50 rounded-lg flex justify-between items-center text-xs border border-slate-100">
+                    <div>
+                      <span className="font-bold text-slate-900">{item.name}</span>
+                      <span className="text-[10px] text-slate-500 font-mono ml-2">({item.ticket_id})</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">{item.check_in_time}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function CheckInModule({ registrations, handleCheckInMember, scannerSearchQuery, setScannerSearchQuery }) {
+// ==========================================
+// MODULE LAINNYA
+// ==========================================
+function RegistrationsModule() {
   return (
     <div className="bg-white p-6 rounded-xl border border-slate-200">
-      <h3 className="font-bold text-sm">Scanner Check-In QR Real</h3>
-      <p className="text-xs text-slate-500 mt-1">Siap digunakan staff pintu masuk.</p>
+      <h3 className="font-bold text-sm">Pendaftaran Real (Modul Registrasi)</h3>
+      <p className="text-xs text-slate-500 mt-1">Siap dikoneksikan ke tabel pendaftaran jemaat.</p>
     </div>
   );
 }
