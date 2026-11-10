@@ -1,17 +1,99 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Calendar, Users, QrCode, Mail, MessageSquare, 
   Gift, Heart, Send, BarChart3, Shield, Settings, Plus, Search, 
-  Filter, Download, Upload, CheckCircle, XCircle, AlertCircle, 
-  ChevronRight, Edit, Trash2, Copy, Eye, RefreshCw, UserPlus, 
-  FileText, Sparkles, Phone, Camera, ArrowRight, Lock, Check,
-  Clock, MapPin, Share2, Printer, AlertTriangle, Layers
+  Download, Upload, CheckCircle, Copy, UserPlus, 
+  FileText, Sparkles, Camera, ArrowRight, Lock, Check,
+  Share2, AlertTriangle, LogOut
 } from 'lucide-react';
+import { supabase } from './supabaseClient'; // Integrasi Supabase Client
 
 // ==========================================
-// INITIAL CENTRAL DATABASE (LOCAL STORAGE PERSISTED)
+// COMPONENT: LOGIN PAGE (SUPABASE AUTH)
 // ==========================================
+function Login({ onLoginSuccess }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg('');
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setErrorMsg('Email atau password salah. Silakan coba lagi.');
+      setLoading(false);
+    } else {
+      setLoading(false);
+      if (onLoginSuccess) onLoginSuccess(data.session);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-slate-800 rounded-xl shadow-2xl border border-slate-700 p-8">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 font-bold text-2xl text-white shadow-lg shadow-teal-600/30">
+            GII
+          </div>
+          <h2 className="text-2xl font-bold text-white">Sistem Tiket GII Holis</h2>
+          <p className="text-slate-400 text-sm mt-1">Portal Super Admin & Pengelola</p>
+        </div>
+
+        {errorMsg && (
+          <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/50 rounded-lg text-rose-400 text-xs text-center font-medium">
+            {errorMsg}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-5">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-2">Email Admin</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-teal-500 transition-colors"
+              placeholder="admin@giiholis.org"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-2">Password</label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-teal-500 transition-colors"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-teal-600/30 transition-all disabled:opacity-50"
+          >
+            {loading ? 'Memverifikasi Kredensial...' : 'Masuk ke Dashboard'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// INITIAL CENTRAL DATABASE
+// ==========================================
 const INITIAL_EVENTS = [
   {
     id: 'EVT-2026-001',
@@ -93,6 +175,10 @@ const INITIAL_REGISTRATIONS = [
 ];
 
 export default function App() {
+  // Session & Auth State
+  const [session, setSession] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
   // Navigation State
   const [activeTab, setActiveTab] = useState('dashboard');
   
@@ -103,30 +189,47 @@ export default function App() {
   
   // Branding & Settings State
   const [branding, setBranding] = useState({
-    orgName: 'Gereja Ininjil Indonesia Holis (GII Holis)',
+    orgName: 'Gereja Injili Indonesia Holis (GII Holis)',
     appName: 'Sistem Tiket GII Holis',
     logoUrl: '',
-    primaryColor: '#1e3a8a', // Deep Navy
-    accentColor: '#0d9488', // Teal/Emerald
-    senderEmail: 'tiket@giiholis.org',
+    primaryColor: '#1e3a8a',
+    accentColor: '#0d9488',
+    senderEmail: 'tiket@gii-holis-tickets.web.id',
     senderName: 'Panitia Acara GII Holis'
   });
 
-  // User Role State (Super Admin, Event Admin, Check-In Staff)
+  // User Role State
   const [currentRole, setCurrentRole] = useState('SUPER_ADMIN');
 
-  // Scanner Modal & Scan Simulation
+  // Scanner & Toast
   const [scannerSearchQuery, setScannerSearchQuery] = useState('');
-  const [scanResult, setScanResult] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Helper Toast
+  // Check Supabase Auth Session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setCheckingAuth(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setCheckingAuth(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+  };
+
   const showToast = (msg, type = 'success') => {
     setToastMessage({ msg, type });
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Perform Check-In logic
   const handleCheckInMember = (regId, ticketId) => {
     setRegistrations(prev => prev.map(reg => {
       if (reg.id === regId) {
@@ -147,12 +250,22 @@ export default function App() {
     }));
   };
 
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white space-y-3">
+        <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs text-slate-400 font-medium">Memuat Otentikasi GII Holis...</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Login onLoginSuccess={(userSession) => setSession(userSession)} />;
+  }
+
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden">
-      
-      {/* ========================================== */}
-      {/* SIDEBAR NAVIGATION (13 MODULES SPECIFIED)  */}
-      {/* ========================================== */}
+      {/* SIDEBAR NAVIGATION */}
       <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 shadow-xl z-20">
         <div className="p-4 border-b border-slate-800 flex items-center gap-3 bg-slate-950">
           <div className="w-10 h-10 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold text-xl shadow-md">
@@ -187,27 +300,32 @@ export default function App() {
           <SidebarItem id="settings" icon={<Settings size={18} />} label="Pengaturan Sistem" active={activeTab} setActive={setActiveTab} />
         </nav>
 
-        {/* User Role Selector Footer */}
-        <div className="p-3 bg-slate-950 border-t border-slate-800 text-xs">
-          <label className="block text-slate-400 mb-1 text-[11px]">Mode Akses Saat Ini:</label>
-          <select 
-            value={currentRole} 
-            onChange={(e) => { setCurrentRole(e.target.value); showToast(`Akses diubah ke: ${e.target.value}`); }}
-            className="w-full bg-slate-800 text-white rounded p-1.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        {/* Role Selector & Logout */}
+        <div className="p-3 bg-slate-950 border-t border-slate-800 text-xs space-y-2">
+          <div>
+            <label className="block text-slate-400 mb-1 text-[11px]">Mode Akses Saat Ini:</label>
+            <select 
+              value={currentRole} 
+              onChange={(e) => { setCurrentRole(e.target.value); showToast(`Akses diubah ke: ${e.target.value}`); }}
+              className="w-full bg-slate-800 text-white rounded p-1.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            >
+              <option value="SUPER_ADMIN">Super Admin (Akses Penuh)</option>
+              <option value="EVENT_ADMIN">Event Admin</option>
+              <option value="CHECKIN_STAFF">Staff Check-In</option>
+            </select>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-lg text-xs font-semibold transition-all border border-rose-500/30"
           >
-            <option value="SUPER_ADMIN">Super Admin (Akses Penuh)</option>
-            <option value="EVENT_ADMIN">Event Admin</option>
-            <option value="CHECKIN_STAFF">Staff Check-In</option>
-          </select>
+            <LogOut size={14} /> Keluar (Logout)
+          </button>
         </div>
       </aside>
 
-      {/* ========================================== */}
-      {/* MAIN CONTENT AREA                          */}
-      {/* ========================================== */}
+      {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        
-        {/* Top Bar Header */}
         <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shadow-sm z-10">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-slate-800 capitalize">
@@ -241,7 +359,6 @@ export default function App() {
           </div>
         </header>
 
-        {/* Dynamic Alert Banner for Toast */}
         {toastMessage && (
           <div className={`px-6 py-2.5 text-xs font-medium text-white flex items-center justify-between transition-all ${toastMessage.type === 'error' ? 'bg-rose-600' : 'bg-teal-600'}`}>
             <span>{toastMessage.msg}</span>
@@ -249,90 +366,26 @@ export default function App() {
           </div>
         )}
 
-        {/* Main View Content Switcher */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
-          
-          {/* 1. DASHBOARD MODULE */}
-          {activeTab === 'dashboard' && (
-            <DashboardModule 
-              events={events} 
-              contacts={contacts} 
-              registrations={registrations} 
-              setActiveTab={setActiveTab} 
-            />
-          )}
-
-          {/* 2. EVENT MANAGEMENT MODULE */}
-          {activeTab === 'events' && (
-            <EventsModule 
-              events={events} 
-              setEvents={setEvents} 
-              showToast={showToast} 
-            />
-          )}
-
-          {/* 3. REGISTRATION LIST & PUBLIC FORM SIMULATOR */}
-          {activeTab === 'registrations' && (
-            <RegistrationsModule 
-              registrations={registrations} 
-              setRegistrations={setRegistrations} 
-              events={events} 
-              showToast={showToast} 
-            />
-          )}
-
-          {/* 4. CHECK-IN SCANNER MODULE */}
-          {activeTab === 'checkin' && (
-            <CheckInModule 
-              registrations={registrations} 
-              handleCheckInMember={handleCheckInMember}
-              scannerSearchQuery={scannerSearchQuery}
-              setScannerSearchQuery={setScannerSearchQuery}
-            />
-          )}
-
-          {/* 5. CONTACTS / CRM MODULE */}
-          {activeTab === 'contacts' && (
-            <ContactsModule 
-              contacts={contacts} 
-              setContacts={setContacts} 
-              showToast={showToast} 
-            />
-          )}
-
-          {/* 6. DIGITAL INVITATIONS */}
+          {activeTab === 'dashboard' && <DashboardModule events={events} contacts={contacts} registrations={registrations} setActiveTab={setActiveTab} />}
+          {activeTab === 'events' && <EventsModule events={events} setEvents={setEvents} showToast={showToast} />}
+          {activeTab === 'registrations' && <RegistrationsModule registrations={registrations} setRegistrations={setRegistrations} events={events} showToast={showToast} />}
+          {activeTab === 'checkin' && <CheckInModule registrations={registrations} handleCheckInMember={handleCheckInMember} scannerSearchQuery={scannerSearchQuery} setScannerSearchQuery={setScannerSearchQuery} />}
+          {activeTab === 'contacts' && <ContactsModule contacts={contacts} setContacts={setContacts} showToast={showToast} />}
           {activeTab === 'invitations' && <DigitalInvitationsModule events={events} showToast={showToast} />}
-
-          {/* 7. DIGITAL GIFT CARDS */}
           {activeTab === 'giftcards' && <GiftCardsModule showToast={showToast} />}
-
-          {/* 8. ENGAGEMENT CENTER */}
           {activeTab === 'engagement' && <EngagementModule contacts={contacts} showToast={showToast} />}
-
-          {/* 9. EMAIL CAMPAIGNS */}
           {activeTab === 'email' && <EmailModule showToast={showToast} />}
-
-          {/* 10. WHATSAPP INTEGRATION (PENDING STATUS) */}
           {activeTab === 'whatsapp' && <WhatsAppModule showToast={showToast} />}
-
-          {/* 11. REPORTS & ANALYTICS */}
           {activeTab === 'reports' && <ReportsModule events={events} registrations={registrations} contacts={contacts} />}
-
-          {/* 12. USER ROLES & PRIVACY (UU PDP) */}
           {activeTab === 'roles' && <RolesModule currentRole={currentRole} setCurrentRole={setCurrentRole} />}
-
-          {/* 13. SYSTEM SETTINGS & BRANDING */}
           {activeTab === 'settings' && <SettingsModule branding={branding} setBranding={setBranding} showToast={showToast} />}
-
         </div>
       </main>
     </div>
   );
 }
 
-// ==========================================
-// COMPONENT: SIDEBAR ITEM
-// ==========================================
 function SidebarItem({ id, icon, label, active, setActive, badge, highlight, statusTag }) {
   const isSelected = active === id;
   return (
@@ -364,52 +417,21 @@ function SidebarItem({ id, icon, label, active, setActive, badge, highlight, sta
   );
 }
 
-// ==========================================
 // MODULE 1: DASHBOARD
-// ==========================================
 function DashboardModule({ events, contacts, registrations, setActiveTab }) {
   const totalRegisteredMembers = registrations.reduce((acc, r) => acc + r.members.length, 0);
   const totalCheckedIn = registrations.reduce((acc, r) => acc + r.members.filter(m => m.checkedIn).length, 0);
 
   return (
-    <div className="space-[#1e293b] space-y-6">
-      
-      {/* Metric Cards Grid */}
+    <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard 
-          title="Total Jemaat (CRM)" 
-          value={contacts.length} 
-          icon={<Users className="text-blue-600" size={22} />}
-          subtext="Terdaftar di database pusat"
-          bg="bg-blue-50"
-        />
-        <MetricCard 
-          title="Peserta Terdaftar" 
-          value={totalRegisteredMembers} 
-          icon={<FileText className="text-teal-600" size={22} />}
-          subtext="Dari seluruh event aktif"
-          bg="bg-teal-50"
-        />
-        <MetricCard 
-          title="Kehadiran (Checked-In)" 
-          value={totalCheckedIn} 
-          icon={<CheckCircle className="text-emerald-600" size={22} />}
-          subtext={`${totalRegisteredMembers ? Math.round((totalCheckedIn/totalRegisteredMembers)*100) : 0}% Tingkat kehadiran`}
-          bg="bg-emerald-50"
-        />
-        <MetricCard 
-          title="Acara Aktif" 
-          value={events.filter(e => e.status === 'Aktif').length} 
-          icon={<Calendar className="text-indigo-600" size={22} />}
-          subtext="Siap menerima pendaftaran"
-          bg="bg-indigo-50"
-        />
+        <MetricCard title="Total Jemaat (CRM)" value={contacts.length} icon={<Users className="text-blue-600" size={22} />} subtext="Terdaftar di database pusat" bg="bg-blue-50" />
+        <MetricCard title="Peserta Terdaftar" value={totalRegisteredMembers} icon={<FileText className="text-teal-600" size={22} />} subtext="Dari seluruh event aktif" bg="bg-teal-50" />
+        <MetricCard title="Kehadiran (Checked-In)" value={totalCheckedIn} icon={<CheckCircle className="text-emerald-600" size={22} />} subtext={`${totalRegisteredMembers ? Math.round((totalCheckedIn/totalRegisteredMembers)*100) : 0}% Tingkat kehadiran`} bg="bg-emerald-50" />
+        <MetricCard title="Acara Aktif" value={events.filter(e => e.status === 'Aktif').length} icon={<Calendar className="text-indigo-600" size={22} />} subtext="Siap menerima pendaftaran" bg="bg-indigo-50" />
       </div>
 
-      {/* Main Dashboard Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left Column: Active Events Quick Summary */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100">
             <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
@@ -451,7 +473,6 @@ function DashboardModule({ events, contacts, registrations, setActiveTab }) {
           </div>
         </div>
 
-        {/* Right Column: Quick Operational Actions */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4 flex flex-col justify-between">
           <div>
             <h3 className="font-bold text-slate-800 text-sm pb-3 border-b border-slate-100 flex items-center gap-2">
@@ -459,10 +480,7 @@ function DashboardModule({ events, contacts, registrations, setActiveTab }) {
             </h3>
             
             <div className="mt-4 space-y-2.5">
-              <button 
-                onClick={() => setActiveTab('checkin')}
-                className="w-full text-left p-3 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 flex items-center justify-between transition"
-              >
+              <button onClick={() => setActiveTab('checkin')} className="w-full text-left p-3 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 flex items-center justify-between transition">
                 <div className="flex items-center gap-3">
                   <QrCode size={20} className="text-teal-700" />
                   <div>
@@ -473,10 +491,7 @@ function DashboardModule({ events, contacts, registrations, setActiveTab }) {
                 <ArrowRight size={16} className="text-teal-700" />
               </button>
 
-              <button 
-                onClick={() => setActiveTab('events')}
-                className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition"
-              >
+              <button onClick={() => setActiveTab('events')} className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition">
                 <div className="flex items-center gap-3">
                   <Plus size={20} className="text-slate-600" />
                   <div>
@@ -487,10 +502,7 @@ function DashboardModule({ events, contacts, registrations, setActiveTab }) {
                 <ArrowRight size={16} className="text-slate-400" />
               </button>
 
-              <button 
-                onClick={() => setActiveTab('contacts')}
-                className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition"
-              >
+              <button onClick={() => setActiveTab('contacts')} className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition">
                 <div className="flex items-center gap-3">
                   <Upload size={20} className="text-slate-600" />
                   <div>
@@ -508,9 +520,7 @@ function DashboardModule({ events, contacts, registrations, setActiveTab }) {
             <span>Sistem Tiket GII Holis mematuhi UU Pelindungan Data Pribadi (PDP) No. 27/2022.</span>
           </div>
         </div>
-
       </div>
-
     </div>
   );
 }
@@ -528,9 +538,7 @@ function MetricCard({ title, value, icon, subtext, bg }) {
   );
 }
 
-// ==========================================
-// MODULE 2: EVENT MANAGEMENT & FORM BUILDER
-// ==========================================
+// MODULE 2: EVENT MANAGEMENT
 function EventsModule({ events, setEvents, showToast }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newEvent, setNewEvent] = useState({
@@ -560,15 +568,11 @@ function EventsModule({ events, setEvents, showToast }) {
           <h3 className="text-base font-bold text-slate-900">Daftar Acara & Kegiatan GII Holis</h3>
           <p className="text-xs text-slate-500">Kelola formulir pendaftaran dan kapasitas tempat duduk</p>
         </div>
-        <button 
-          onClick={() => setShowCreateModal(true)}
-          className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-2 shadow"
-        >
+        <button onClick={() => setShowCreateModal(true)} className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-2 shadow">
           <Plus size={16} /> Buat Acara Baru
         </button>
       </div>
 
-      {/* Events Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {events.map(evt => (
           <div key={evt.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition">
@@ -605,11 +609,7 @@ function EventsModule({ events, setEvents, showToast }) {
                   <strong className="text-teal-700 font-bold">{evt.registered}</strong> / {evt.capacity} Porsi
                 </div>
                 <div className="flex gap-2">
-                  <button 
-                    onClick={() => showToast(`URL Publik disalin: https://giiholis.org/register/${evt.id}`)}
-                    className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg text-xs flex items-center gap-1 border border-slate-200"
-                    title="Salin Link Pendaftaran Publik"
-                  >
+                  <button onClick={() => showToast(`URL Publik disalin: https://gii-holis-tickets.web.id/register/${evt.id}`)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg text-xs flex items-center gap-1 border border-slate-200" title="Salin Link Pendaftaran Publik">
                     <Copy size={14} /> Link Form
                   </button>
                 </div>
@@ -619,7 +619,6 @@ function EventsModule({ events, setEvents, showToast }) {
         ))}
       </div>
 
-      {/* Modal Buat Acara Baru */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200">
@@ -630,24 +629,13 @@ function EventsModule({ events, setEvents, showToast }) {
             <form onSubmit={handleCreateEvent} className="p-6 space-y-4 text-xs">
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Nama Acara *</label>
-                <input 
-                  required 
-                  type="text" 
-                  value={newEvent.name} 
-                  onChange={e => setNewEvent({...newEvent, name: e.target.value})}
-                  placeholder="Contoh: Kebaktian Paskah 2027" 
-                  className="w-full p-2.5 border rounded-lg border-slate-300 focus:ring-1 focus:ring-teal-500" 
-                />
+                <input required type="text" value={newEvent.name} onChange={e => setNewEvent({...newEvent, name: e.target.value})} placeholder="Contoh: Kebaktian Paskah 2027" className="w-full p-2.5 border rounded-lg border-slate-300 focus:ring-1 focus:ring-teal-500" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1 text-slate-700">Kategori</label>
-                  <select 
-                    value={newEvent.category} 
-                    onChange={e => setNewEvent({...newEvent, category: e.target.value})}
-                    className="w-full p-2.5 border rounded-lg border-slate-300"
-                  >
+                  <select value={newEvent.category} onChange={e => setNewEvent({...newEvent, category: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300">
                     <option value="Ibadah Minggu">Ibadah Minggu</option>
                     <option value="Natal">Natal</option>
                     <option value="Paskah">Paskah</option>
@@ -657,55 +645,28 @@ function EventsModule({ events, setEvents, showToast }) {
                 </div>
                 <div>
                   <label className="block font-semibold mb-1 text-slate-700">Kapasitas Maksimal</label>
-                  <input 
-                    type="number" 
-                    value={newEvent.capacity} 
-                    onChange={e => setNewEvent({...newEvent, capacity: parseInt(e.target.value) || 100})}
-                    className="w-full p-2.5 border rounded-lg border-slate-300" 
-                  />
+                  <input type="number" value={newEvent.capacity} onChange={e => setNewEvent({...newEvent, capacity: parseInt(e.target.value) || 100})} className="w-full p-2.5 border rounded-lg border-slate-300" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1 text-slate-700">Tanggal Acara</label>
-                  <input 
-                    type="date" 
-                    required
-                    value={newEvent.date} 
-                    onChange={e => setNewEvent({...newEvent, date: e.target.value})}
-                    className="w-full p-2.5 border rounded-lg border-slate-300" 
-                  />
+                  <input type="date" required value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
                 </div>
                 <div>
                   <label className="block font-semibold mb-1 text-slate-700">Jam / Waktu</label>
-                  <input 
-                    type="text" 
-                    placeholder="09:00 WIB"
-                    value={newEvent.time} 
-                    onChange={e => setNewEvent({...newEvent, time: e.target.value})}
-                    className="w-full p-2.5 border rounded-lg border-slate-300" 
-                  />
+                  <input type="text" placeholder="09:00 WIB" value={newEvent.time} onChange={e => setNewEvent({...newEvent, time: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
                 </div>
               </div>
 
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Tempat / Ruangan</label>
-                <input 
-                  type="text" 
-                  value={newEvent.venue} 
-                  onChange={e => setNewEvent({...newEvent, venue: e.target.value})}
-                  className="w-full p-2.5 border rounded-lg border-slate-300" 
-                />
+                <input type="text" value={newEvent.venue} onChange={e => setNewEvent({...newEvent, venue: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
               </div>
 
               <div className="flex items-center gap-2 pt-2">
-                <input 
-                  type="checkbox" 
-                  id="familyOpt" 
-                  checked={newEvent.allowFamily} 
-                  onChange={e => setNewEvent({...newEvent, allowFamily: e.target.checked})}
-                />
+                <input type="checkbox" id="familyOpt" checked={newEvent.allowFamily} onChange={e => setNewEvent({...newEvent, allowFamily: e.target.checked})} />
                 <label htmlFor="familyOpt" className="font-semibold text-slate-700">Izinkan Pendaftaran Keluarga / Rombongan (Multi-Tiket)</label>
               </div>
 
@@ -721,14 +682,11 @@ function EventsModule({ events, setEvents, showToast }) {
   );
 }
 
-// ==========================================
-// MODULE 3: REGISTRATIONS & PUBLIC SIMULATOR
-// ==========================================
+// MODULE 3: REGISTRATIONS
 function RegistrationsModule({ registrations, setRegistrations, events, showToast }) {
   const [showRegisterSim, setShowRegisterSim] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState(events[0]?.id || '');
   
-  // Registration Form State
   const [regForm, setRegForm] = useState({
     name: '', email: '', phone: '', type: 'Individu',
     familyMembers: [{ name: '', category: 'Dewasa' }]
@@ -758,7 +716,6 @@ function RegistrationsModule({ registrations, setRegistrations, events, showToas
         checkInTime: null
       });
     } else {
-      // Primary member
       membersList.push({
         ticketId: `TKT-${regId.split('-')[1]}-1`,
         name: regForm.name,
@@ -767,7 +724,6 @@ function RegistrationsModule({ registrations, setRegistrations, events, showToas
         checkedIn: false,
         checkInTime: null
       });
-      // Additional family members
       regForm.familyMembers.forEach((fm, idx) => {
         if (fm.name.trim()) {
           membersList.push({
@@ -807,15 +763,11 @@ function RegistrationsModule({ registrations, setRegistrations, events, showToas
           <h3 className="text-base font-bold text-slate-900">Pendaftaran & Tiket Terbit</h3>
           <p className="text-xs text-slate-500">Daftar pendaftar serta generator tiket QR per porsi keluarga</p>
         </div>
-        <button 
-          onClick={() => setShowRegisterSim(true)}
-          className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-2 shadow"
-        >
+        <button onClick={() => setShowRegisterSim(true)} className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-2 shadow">
           <UserPlus size={16} /> Simulasi Form Pendaftaran Jemaat
         </button>
       </div>
 
-      {/* Registration Records Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center text-xs">
           <span className="font-bold text-slate-700">Total {registrations.length} Transaksi Pendaftaran</span>
@@ -872,7 +824,6 @@ function RegistrationsModule({ registrations, setRegistrations, events, showToas
         </div>
       </div>
 
-      {/* Modal Simulasi Form Pendaftaran */}
       {showRegisterSim && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 my-8">
@@ -887,11 +838,7 @@ function RegistrationsModule({ registrations, setRegistrations, events, showToas
             <form onSubmit={handleSubmitRegistration} className="p-6 space-y-4 text-xs">
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Pilih Acara *</label>
-                <select 
-                  value={selectedEventId} 
-                  onChange={e => setSelectedEventId(e.target.value)}
-                  className="w-full p-2.5 border rounded-lg border-slate-300 font-medium text-slate-800"
-                >
+                <select value={selectedEventId} onChange={e => setSelectedEventId(e.target.value)} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium text-slate-800">
                   {events.map(e => (
                     <option key={e.id} value={e.id}>{e.name} ({e.date})</option>
                   ))}
@@ -901,37 +848,17 @@ function RegistrationsModule({ registrations, setRegistrations, events, showToas
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1 text-slate-700">Nama Lengkap (Pendaftar Utama) *</label>
-                  <input 
-                    required 
-                    type="text" 
-                    value={regForm.name} 
-                    onChange={e => setRegForm({...regForm, name: e.target.value})}
-                    placeholder="Contoh: Yohanes Wijaya" 
-                    className="w-full p-2.5 border rounded-lg border-slate-300" 
-                  />
+                  <input required type="text" value={regForm.name} onChange={e => setRegForm({...regForm, name: e.target.value})} placeholder="Contoh: Yohanes Wijaya" className="w-full p-2.5 border rounded-lg border-slate-300" />
                 </div>
                 <div>
                   <label className="block font-semibold mb-1 text-slate-700">Nomor WhatsApp / HP *</label>
-                  <input 
-                    required 
-                    type="text" 
-                    value={regForm.phone} 
-                    onChange={e => setRegForm({...regForm, phone: e.target.value})}
-                    placeholder="08123456789" 
-                    className="w-full p-2.5 border rounded-lg border-slate-300" 
-                  />
+                  <input required type="text" value={regForm.phone} onChange={e => setRegForm({...regForm, phone: e.target.value})} placeholder="08123456789" className="w-full p-2.5 border rounded-lg border-slate-300" />
                 </div>
               </div>
 
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Email (Untuk Pengiriman Tiket QR)</label>
-                <input 
-                  type="email" 
-                  value={regForm.email} 
-                  onChange={e => setRegForm({...regForm, email: e.target.value})}
-                  placeholder="nama@gmail.com" 
-                  className="w-full p-2.5 border rounded-lg border-slate-300" 
-                />
+                <input type="email" value={regForm.email} onChange={e => setRegForm({...regForm, email: e.target.value})} placeholder="nama@gmail.com" className="w-full p-2.5 border rounded-lg border-slate-300" />
               </div>
 
               {activeEvent?.allowFamily && (
@@ -939,21 +866,11 @@ function RegistrationsModule({ registrations, setRegistrations, events, showToas
                   <label className="block font-semibold mb-1 text-slate-700">Jenis Pendaftaran</label>
                   <div className="flex gap-4 p-2 bg-slate-50 border rounded-lg">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="regType" 
-                        checked={regForm.type === 'Individu'} 
-                        onChange={() => setRegForm({...regForm, type: 'Individu'})} 
-                      />
+                      <input type="radio" name="regType" checked={regForm.type === 'Individu'} onChange={() => setRegForm({...regForm, type: 'Individu'})} />
                       <span>Individu (1 Orang)</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="regType" 
-                        checked={regForm.type === 'Keluarga'} 
-                        onChange={() => setRegForm({...regForm, type: 'Keluarga'})} 
-                      />
+                      <input type="radio" name="regType" checked={regForm.type === 'Keluarga'} onChange={() => setRegForm({...regForm, type: 'Keluarga'})} />
                       <span className="font-bold text-teal-800">Keluarga / Rombongan (Multi Tiket)</span>
                     </label>
                   </div>
@@ -964,37 +881,23 @@ function RegistrationsModule({ registrations, setRegistrations, events, showToas
                 <div className="space-y-3 p-3 bg-purple-50/50 border border-purple-200 rounded-lg">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-purple-900">Anggota Keluarga Tambahan</span>
-                    <button 
-                      type="button" 
-                      onClick={handleAddFamilyMember} 
-                      className="text-xs bg-purple-600 text-white font-semibold px-2.5 py-1 rounded hover:bg-purple-700"
-                    >
+                    <button type="button" onClick={handleAddFamilyMember} className="text-xs bg-purple-600 text-white font-semibold px-2.5 py-1 rounded hover:bg-purple-700">
                       + Tambah Anggota
                     </button>
                   </div>
 
                   {regForm.familyMembers.map((fm, idx) => (
                     <div key={idx} className="flex items-center gap-2">
-                      <input 
-                        type="text" 
-                        placeholder={`Nama Anggota ${idx + 1}`} 
-                        value={fm.name}
-                        onChange={e => {
-                          const updated = [...regForm.familyMembers];
-                          updated[idx].name = e.target.value;
-                          setRegForm({...regForm, familyMembers: updated});
-                        }}
-                        className="flex-1 p-2 border rounded border-slate-300"
-                      />
-                      <select 
-                        value={fm.category}
-                        onChange={e => {
-                          const updated = [...regForm.familyMembers];
-                          updated[idx].category = e.target.value;
-                          setRegForm({...regForm, familyMembers: updated});
-                        }}
-                        className="p-2 border rounded border-slate-300"
-                      >
+                      <input type="text" placeholder={`Nama Anggota ${idx + 1}`} value={fm.name} onChange={e => {
+                        const updated = [...regForm.familyMembers];
+                        updated[idx].name = e.target.value;
+                        setRegForm({...regForm, familyMembers: updated});
+                      }} className="flex-1 p-2 border rounded border-slate-300" />
+                      <select value={fm.category} onChange={e => {
+                        const updated = [...regForm.familyMembers];
+                        updated[idx].category = e.target.value;
+                        setRegForm({...regForm, familyMembers: updated});
+                      }} className="p-2 border rounded border-slate-300">
                         <option value="Dewasa">Dewasa</option>
                         <option value="Anak (Sekolah Minggu)">Anak</option>
                         <option value="Lansia">Lansia</option>
@@ -1020,13 +923,8 @@ function RegistrationsModule({ registrations, setRegistrations, events, showToas
   );
 }
 
-// ==========================================
 // MODULE 4: CHECK-IN SCANNER
-// ==========================================
 function CheckInModule({ registrations, handleCheckInMember, scannerSearchQuery, setScannerSearchQuery }) {
-  const [selectedTicket, setSelectedTicket] = useState(null);
-
-  // Filter Search
   const allTickets = registrations.flatMap(r => 
     r.members.map(m => ({
       ...m,
@@ -1046,8 +944,6 @@ function CheckInModule({ registrations, handleCheckInMember, scannerSearchQuery,
 
   return (
     <div className="space-y-6">
-      
-      {/* Search & Scanner Input Bar */}
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -1069,7 +965,6 @@ function CheckInModule({ registrations, handleCheckInMember, scannerSearchQuery,
           </div>
         </div>
 
-        {/* Camera Simulation Alert */}
         <div className="p-4 bg-slate-900 text-white rounded-lg flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-teal-600/30 flex items-center justify-center text-teal-400 animate-pulse">
@@ -1094,7 +989,6 @@ function CheckInModule({ registrations, handleCheckInMember, scannerSearchQuery,
         </div>
       </div>
 
-      {/* Ticket List for Manual Checkin */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center text-xs font-bold text-slate-700">
           <span>Daftar Tiket Terdaftar ({filteredTickets.length})</span>
@@ -1136,14 +1030,11 @@ function CheckInModule({ registrations, handleCheckInMember, scannerSearchQuery,
           ))}
         </div>
       </div>
-
     </div>
   );
 }
 
-// ==========================================
-// MODULE 5: CRM CONTACTS & CSV IMPORT
-// ==========================================
+// MODULE 5: CRM CONTACTS
 function ContactsModule({ contacts, setContacts, showToast }) {
   const [search, setSearch] = useState('');
 
@@ -1161,10 +1052,7 @@ function ContactsModule({ contacts, setContacts, showToast }) {
           <p className="text-xs text-slate-500">Direktori jemaat GII Holis yang digunakan kembali di semua acara</p>
         </div>
         <div className="flex gap-2">
-          <button 
-            onClick={() => showToast('Simulasi Import CSV Data Jemaat Berhasil! (4 Kontak Ditambahkan)')}
-            className="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-3 py-2 rounded-lg flex items-center gap-1.5"
-          >
+          <button onClick={() => showToast('Simulasi Import CSV Data Jemaat Berhasil! (4 Kontak Ditambahkan)')} className="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-3 py-2 rounded-lg flex items-center gap-1.5">
             <Upload size={14} /> Import CSV / Excel
           </button>
         </div>
@@ -1214,38 +1102,19 @@ function ContactsModule({ contacts, setContacts, showToast }) {
   );
 }
 
-// ==========================================
 // MODULE 6: DIGITAL INVITATIONS
-// ==========================================
 function DigitalInvitationsModule({ events, showToast }) {
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Pembuat Undangan Digital</h3>
-          <p className="text-xs text-slate-500">Kirim undangan gambar/kustom dengan nama personal jemaat</p>
-        </div>
+      <div>
+        <h3 className="text-base font-bold text-slate-900">Pembuat Undangan Digital</h3>
+        <p className="text-xs text-slate-500">Kirim undangan gambar/kustom dengan nama personal jemaat</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <InvitationTemplateCard 
-          title="Undangan Natal Agung GII Holis" 
-          bg="bg-gradient-to-br from-red-900 to-amber-900"
-          tag="Natal"
-          showToast={showToast}
-        />
-        <InvitationTemplateCard 
-          title="Undangan Ibadah Paskah 2027" 
-          bg="bg-gradient-to-br from-purple-900 to-slate-900"
-          tag="Paskah"
-          showToast={showToast}
-        />
-        <InvitationTemplateCard 
-          title="Undangan Youth Gathering Lembang" 
-          bg="bg-gradient-to-br from-teal-900 to-emerald-900"
-          tag="Youth"
-          showToast={showToast}
-        />
+        <InvitationTemplateCard title="Undangan Natal Agung GII Holis" bg="bg-gradient-to-br from-red-900 to-amber-900" tag="Natal" showToast={showToast} />
+        <InvitationTemplateCard title="Undangan Ibadah Paskah 2027" bg="bg-gradient-to-br from-purple-900 to-slate-900" tag="Paskah" showToast={showToast} />
+        <InvitationTemplateCard title="Undangan Youth Gathering Lembang" bg="bg-gradient-to-br from-teal-900 to-emerald-900" tag="Youth" showToast={showToast} />
       </div>
     </div>
   );
@@ -1263,10 +1132,7 @@ function InvitationTemplateCard({ title, bg, tag, showToast }) {
       </div>
       <div className="p-4 space-y-3">
         <p className="text-xs text-slate-500">Mendukung variabel personalisasi: <code className="text-teal-700 bg-teal-50 px-1 font-mono">{`{{nama}}`}</code> dan <code className="text-teal-700 bg-teal-50 px-1 font-mono">{`{{acara}}`}</code>.</p>
-        <button 
-          onClick={() => showToast('Undangan Digital Terkirim ke 50 Jemaat Terpilih!')}
-          className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2 rounded-lg flex items-center justify-center gap-2"
-        >
+        <button onClick={() => showToast('Undangan Digital Terkirim ke 50 Jemaat Terpilih!')} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2 rounded-lg flex items-center justify-center gap-2">
           <Send size={14} /> Kirim Undangan via Email
         </button>
       </div>
@@ -1274,9 +1140,7 @@ function InvitationTemplateCard({ title, bg, tag, showToast }) {
   );
 }
 
-// ==========================================
 // MODULE 7: DIGITAL GIFT CARDS
-// ==========================================
 function GiftCardsModule({ showToast }) {
   return (
     <div className="space-y-6">
@@ -1291,10 +1155,7 @@ function GiftCardsModule({ showToast }) {
           <div>Kartu hadiah bersifat ucapan digital & sertifikat apresiasi non-moneter untuk pelayanan jemaat.</div>
         </div>
 
-        <button 
-          onClick={() => showToast('Kampanye Kartu Apresiasi Berhasil Diterbitkan!')}
-          className="bg-teal-600 text-white font-bold text-xs px-4 py-2 rounded-lg"
-        >
+        <button onClick={() => showToast('Kampanye Kartu Apresiasi Berhasil Diterbitkan!')} className="bg-teal-600 text-white font-bold text-xs px-4 py-2 rounded-lg">
           + Buat Kampanye Kartu Ucapan Baru
         </button>
       </div>
@@ -1302,9 +1163,7 @@ function GiftCardsModule({ showToast }) {
   );
 }
 
-// ==========================================
 // MODULE 8: ENGAGEMENT CENTER
-// ==========================================
 function EngagementModule({ contacts, showToast }) {
   return (
     <div className="space-y-6">
@@ -1322,10 +1181,7 @@ function EngagementModule({ contacts, showToast }) {
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">Sistem Aktif</span>
         </div>
 
-        <button 
-          onClick={() => showToast('Trigger Manual: 2 Ucapan Ulang Tahun Berhasil Terkirim Hari Ini!')}
-          className="bg-slate-900 text-white font-bold text-xs px-4 py-2 rounded-lg"
-        >
+        <button onClick={() => showToast('Trigger Manual: 2 Ucapan Ulang Tahun Berhasil Terkirim Hari Ini!')} className="bg-slate-900 text-white font-bold text-xs px-4 py-2 rounded-lg">
           ⚡ Jalankan Pengecekan Ulang Tahun Sekarang
         </button>
       </div>
@@ -1333,33 +1189,28 @@ function EngagementModule({ contacts, showToast }) {
   );
 }
 
-// ==========================================
 // MODULE 9: EMAIL CAMPAIGNS
-// ==========================================
 function EmailModule({ showToast }) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-base font-bold text-slate-900">Otomasi Email Transaksional (SMTP)</h3>
+        <h3 className="text-base font-bold text-slate-900">Otomasi Email Transaksional (Resend API / SMTP)</h3>
         <p className="text-xs text-slate-500">Pengiriman e-Tiket, Pengingat Ibadah H-1, H-3, H-7</p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
         <div className="grid grid-cols-2 gap-4 text-xs">
           <div className="p-3 border rounded">
-            <span className="text-slate-500 block">Server SMTP Target:</span>
-            <strong className="text-slate-800">smtp.giiholis.org (Port 587)</strong>
+            <span className="text-slate-500 block">Domain Email Terhubung:</span>
+            <strong className="text-slate-800">gii-holis-tickets.web.id</strong>
           </div>
           <div className="p-3 border rounded">
             <span className="text-slate-500 block">Email Pengirim Resmi:</span>
-            <strong className="text-slate-800">tiket@giiholis.org</strong>
+            <strong className="text-slate-800">tiket@gii-holis-tickets.web.id</strong>
           </div>
         </div>
 
-        <button 
-          onClick={() => showToast('Email Uji Coba Berhasil Terkirim ke inbox admin!')}
-          className="bg-teal-600 text-white font-bold text-xs px-4 py-2 rounded-lg"
-        >
+        <button onClick={() => showToast('Email Uji Coba Berhasil Terkirim!')} className="bg-teal-600 text-white font-bold text-xs px-4 py-2 rounded-lg">
           ✉️ Kirim Email Uji Coba (Test Email)
         </button>
       </div>
@@ -1367,9 +1218,7 @@ function EmailModule({ showToast }) {
   );
 }
 
-// ==========================================
-// MODULE 10: WHATSAPP INTEGRATION (PENDING STATUS)
-// ==========================================
+// MODULE 10: WHATSAPP INTEGRATION
 function WhatsAppModule({ showToast }) {
   return (
     <div className="space-y-6">
@@ -1378,7 +1227,6 @@ function WhatsAppModule({ showToast }) {
         <p className="text-xs text-slate-500">Status konfigurasi pengiriman notifikasi via WhatsApp resmi</p>
       </div>
 
-      {/* Pending Status Alert Banner */}
       <div className="bg-amber-50 border border-amber-300 rounded-xl p-5 space-y-3">
         <div className="flex items-center gap-3 text-amber-900">
           <AlertTriangle size={24} className="text-amber-600 shrink-0" />
@@ -1390,36 +1238,11 @@ function WhatsAppModule({ showToast }) {
           </div>
         </div>
       </div>
-
-      {/* Configuration Form Preview */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4 text-xs opacity-75">
-        <h4 className="font-bold text-slate-800 text-sm border-b pb-2">Panel Parameter API (Diaktifkan Mendatang)</h4>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block font-semibold mb-1 text-slate-700">WhatsApp Phone Number ID</label>
-            <input disabled type="text" placeholder="Contoh: 10928374650912" className="w-full p-2.5 border bg-slate-50 rounded" />
-          </div>
-          <div>
-            <label className="block font-semibold mb-1 text-slate-700">Meta Access Token (Permanent)</label>
-            <input disabled type="password" value="************************" className="w-full p-2.5 border bg-slate-50 rounded" />
-          </div>
-        </div>
-
-        <button 
-          onClick={() => showToast('Integrasi WhatsApp masih dalam mode PENDING. Fitur belum diaktifkan.', 'error')}
-          className="bg-slate-400 text-white font-bold px-4 py-2 rounded-lg cursor-not-allowed"
-        >
-          Simpan Kredensial WhatsApp
-        </button>
-      </div>
     </div>
   );
 }
 
-// ==========================================
 // MODULE 11: REPORTS & ANALYTICS
-// ==========================================
 function ReportsModule({ events, registrations, contacts }) {
   return (
     <div className="space-y-6">
@@ -1445,9 +1268,7 @@ function ReportsModule({ events, registrations, contacts }) {
   );
 }
 
-// ==========================================
-// MODULE 12: USER ROLES & PRIVACY (UU PDP)
-// ==========================================
+// MODULE 12: USER ROLES & PRIVACY
 function RolesModule({ currentRole, setCurrentRole }) {
   return (
     <div className="space-y-6">
@@ -1475,9 +1296,7 @@ function RolesModule({ currentRole, setCurrentRole }) {
   );
 }
 
-// ==========================================
 // MODULE 13: SYSTEM SETTINGS & BRANDING
-// ==========================================
 function SettingsModule({ branding, setBranding, showToast }) {
   return (
     <div className="space-y-6">
@@ -1489,28 +1308,15 @@ function SettingsModule({ branding, setBranding, showToast }) {
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4 text-xs">
         <div>
           <label className="block font-semibold mb-1 text-slate-700">Nama Organisasi / Gereja</label>
-          <input 
-            type="text" 
-            value={branding.orgName} 
-            onChange={e => setBranding({...branding, orgName: e.target.value})}
-            className="w-full p-2.5 border rounded-lg border-slate-300" 
-          />
+          <input type="text" value={branding.orgName} onChange={e => setBranding({...branding, orgName: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
         </div>
 
         <div>
           <label className="block font-semibold mb-1 text-slate-700">Nama Aplikasi Web</label>
-          <input 
-            type="text" 
-            value={branding.appName} 
-            onChange={e => setBranding({...branding, appName: e.target.value})}
-            className="w-full p-2.5 border rounded-lg border-slate-300 font-bold" 
-          />
+          <input type="text" value={branding.appName} onChange={e => setBranding({...branding, appName: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-bold" />
         </div>
 
-        <button 
-          onClick={() => showToast('Pengaturan Branding Berhasil Diperbarui!')}
-          className="bg-teal-600 text-white font-bold px-4 py-2 rounded-lg"
-        >
+        <button onClick={() => showToast('Pengaturan Branding Berhasil Diperbarui!')} className="bg-teal-600 text-white font-bold px-4 py-2 rounded-lg">
           Simpan Pengaturan
         </button>
       </div>
