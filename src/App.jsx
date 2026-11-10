@@ -1471,13 +1471,18 @@ function CheckInModule({ showToast }) {
 }
 
 // ==========================================
-// MODULE 4: DATA REGISTRASI & PENDAFTARAN (REAL SUPABASE DB)
+// MODULE 4: DATA REGISTRASI & PENDAFTARAN (REAL SUPABASE DB + MANUAL CHECK-IN & POPUP QR)
 // ==========================================
 function RegistrationsModule({ events, showToast }) {
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEventId, setSelectedEventId] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // State Modal QR Code
+  const [activeQrModal, setActiveQrModal] = useState(null);
+  // State Loading Check-in Manual
+  const [processingId, setProcessingId] = useState(null);
 
   const fetchRegistrations = async () => {
     setLoading(true);
@@ -1498,6 +1503,57 @@ function RegistrationsModule({ events, showToast }) {
   useEffect(() => {
     fetchRegistrations();
   }, []);
+
+  // FITUR 1: HANDLER CHECK-IN MANUAL PETUGAS
+  const handleManualCheckIn = async (member, eventId) => {
+    if (processingId) return;
+    setProcessingId(member.id);
+
+    const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+
+    // Update status checked_in di Supabase
+    const { error } = await supabase
+      .from('registration_members')
+      .update({ 
+        checked_in: true, 
+        check_in_time: nowTime 
+      })
+      .eq('id', member.id);
+
+    if (error) {
+      if (showToast) showToast(`Gagal Check-In: ${error.message}`, 'error');
+      setProcessingId(null);
+      return;
+    }
+
+    // Update counter checked_in di tabel events jika ada eventId
+    if (eventId) {
+      const { data: eventData } = await supabase
+        .from('events')
+        .select('checked_in')
+        .eq('id', eventId)
+        .single();
+
+      if (eventData) {
+        await supabase
+          .from('events')
+          .update({ checked_in: (eventData.checked_in || 0) + 1 })
+          .eq('id', eventId);
+      }
+    }
+
+    if (showToast) showToast(`Berhasil Check-In Manual: ${member.name} (${member.ticket_id})`);
+    
+    // Refresh lokal state agar tampilan terupdate seketika
+    setRegistrations(prevRegs => prevRegs.map(reg => ({
+      ...reg,
+      registration_members: reg.registration_members.map(m => 
+        m.id === member.id ? { ...m, checked_in: true, check_in_time: nowTime } : m
+      )
+    })));
+
+    setProcessingId(null);
+  };
 
   const filteredRegs = registrations.filter(reg => {
     const matchEvent = selectedEventId === 'ALL' || reg.event_id === selectedEventId;
@@ -1586,22 +1642,39 @@ function RegistrationsModule({ events, showToast }) {
                 <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   Daftar Tiket QR Terbit ({reg.registration_members?.length || 0} Tiket)
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {reg.registration_members?.map(mem => (
-                    <div key={mem.id} className={`p-3 rounded-lg border flex justify-between items-center text-xs ${mem.checked_in ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
-                      <div>
-                        <div className="font-bold text-slate-900">{mem.name}</div>
-                        <div className="text-[10px] font-mono font-bold text-teal-700 mt-0.5">{mem.ticket_id} ({mem.category})</div>
+                    <div key={mem.id} className={`p-3 rounded-lg border flex flex-col justify-between text-xs gap-3 ${mem.checked_in ? 'bg-emerald-50/60 border-emerald-200' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-bold text-slate-900 text-sm">{mem.name}</div>
+                          <div className="text-[10px] font-mono font-bold text-teal-700 mt-0.5">{mem.ticket_id} ({mem.category})</div>
+                        </div>
+                        
+                        {/* FITUR 2: POPUP DISPLAY QR CODE */}
+                        <button 
+                          onClick={() => setActiveQrModal({ member: mem, eventName: reg.events?.name })}
+                          className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-md shadow-sm transition" 
+                          title="Tampilkan QR Code"
+                        >
+                          <QrCode size={16} />
+                        </button>
                       </div>
-                      <div>
+
+                      {/* STATUS & ACTION BUTTON */}
+                      <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center">
                         {mem.checked_in ? (
-                          <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full border border-emerald-300">
-                            ✓ {mem.check_in_time || 'Checked-In'}
+                          <span className="w-full text-center px-2 py-1 bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded-md border border-emerald-300">
+                            ✓ Hadir ({mem.check_in_time || 'Checked-In'})
                           </span>
                         ) : (
-                          <span className="px-2 py-1 bg-slate-200 text-slate-600 text-[10px] font-bold rounded-full">
-                            Belum Hadir
-                          </span>
+                          <button
+                            disabled={processingId === mem.id}
+                            onClick={() => handleManualCheckIn(mem, reg.event_id)}
+                            className="w-full py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-md shadow-sm transition flex items-center justify-center gap-1 disabled:opacity-50"
+                          >
+                            {processingId === mem.id ? 'Memproses...' : '✓ Set Hadir Manual'}
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1610,6 +1683,55 @@ function RegistrationsModule({ events, showToast }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* MODAL POPUP QR CODE JEMAAT */}
+      {activeQrModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 border border-slate-200">
+            <div className="flex justify-between items-center border-b pb-3">
+              <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">E-Tiket Jemaat</span>
+              <button onClick={() => setActiveQrModal(null)} className="text-slate-400 hover:text-slate-600 p-1 font-bold">✕</button>
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="font-bold text-base text-slate-900">{activeQrModal.member.name}</h3>
+              <p className="text-xs text-slate-500">{activeQrModal.eventName || 'GII Holis Event'}</p>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 inline-block mx-auto shadow-inner">
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${activeQrModal.member.ticket_id}`} 
+                alt="QR Code Tiket" 
+                className="w-48 h-48 mx-auto rounded-lg bg-white p-1"
+              />
+            </div>
+
+            <div className="font-mono text-sm font-bold text-teal-800 bg-teal-50 py-1.5 px-4 rounded-lg border border-teal-200 inline-block">
+              {activeQrModal.member.ticket_id} ({activeQrModal.member.category})
+            </div>
+
+            <div className="pt-2 flex gap-2">
+              {!activeQrModal.member.checked_in && (
+                <button 
+                  onClick={() => {
+                    handleManualCheckIn(activeQrModal.member, null);
+                    setActiveQrModal(null);
+                  }}
+                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition"
+                >
+                  ✓ Hadir Manual
+                </button>
+              )}
+              <button 
+                onClick={() => setActiveQrModal(null)} 
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
