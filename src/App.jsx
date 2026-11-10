@@ -1204,32 +1204,64 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 }
 
 // ==========================================
-// MODULE 3: CHECK-IN SCANNER QR REAL
+// MODULE 3: CHECK-IN SCANNER QR REAL (IOS SAFARI FIX)
 // ==========================================
 function CheckInModule({ showToast }) {
   const [scanResult, setScanResult] = useState(null);
   const [loadingCheckIn, setLoadingCheckIn] = useState(false);
   const [manualTicketInput, setManualTicketInput] = useState('');
   const [recentCheckIns, setRecentCheckIns] = useState([]);
+  const [cameraError, setCameraError] = useState(null);
 
   useEffect(() => {
-    // Inisialisasi Scanner Kamera via CDN
-    const scanner = new Html5QrcodeScanner('reader', {
-      qrbox: { width: 250, height: 250 },
-      fps: 10,
-    }, false);
+    let html5QrCode = null;
 
-    scanner.render(
-      (decodedText) => {
-        handleProcessCheckIn(decodedText.trim());
-      },
-      (error) => {
-        // Abaikan frame error baca QR
+    const startScanner = async () => {
+      try {
+        // Import library dari CDN secara dinamis untuk kompatibilitas iOS
+        const { Html5Qrcode } = await import('https://esm.sh/html5-qrcode');
+        html5QrCode = new Html5Qrcode("reader");
+
+        const config = { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0
+        };
+
+        // Utamakan kamera belakang (facingMode: environment) untuk iOS/Android
+        const qrCodeSuccessCallback = (decodedText) => {
+          handleProcessCheckIn(decodedText.trim());
+        };
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          config,
+          qrCodeSuccessCallback
+        );
+      } catch (err) {
+        console.warn("Gagal pakai kamera belakang, mencoba kamera default:", err);
+        // Fallback jika device tidak mendukung facingMode environment
+        try {
+          if (html5QrCode) {
+            await html5QrCode.start(
+              { facingMode: "user" },
+              { fps: 10, qrbox: { width: 250, height: 250 } },
+              (decodedText) => handleProcessCheckIn(decodedText.trim())
+            );
+          }
+        } catch (fallbackErr) {
+          console.error("Kamera gagal diakses penuh:", fallbackErr);
+          setCameraError("Kamera tidak dapat diakses otomatis. Pastikan izin kamera di Pengaturan Safari iOS sudah diizinkan (Allow).");
+        }
       }
-    );
+    };
+
+    startScanner();
 
     return () => {
-      scanner.clear().catch(err => console.error("Error clearing scanner:", err));
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => html5QrCode.clear()).catch(err => console.error("Error stop scanner:", err));
+      }
     };
   }, []);
 
@@ -1344,8 +1376,14 @@ function CheckInModule({ showToast }) {
           <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Kamera Pemindai</h4>
           
           <div className="overflow-hidden rounded-xl border-2 border-slate-200 bg-slate-900 min-h-[280px] flex items-center justify-center relative">
-            <div id="reader" className="w-full"></div>
+            <div id="reader" className="w-full h-full min-h-[250px]"></div>
           </div>
+
+          {cameraError && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs">
+              ⚠️ {cameraError}
+            </div>
+          )}
 
           <form onSubmit={handleManualSubmit} className="pt-2">
             <label className="block text-xs font-semibold text-slate-600 mb-1">Atau Ketik Kode Tiket Manual:</label>
