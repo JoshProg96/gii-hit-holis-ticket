@@ -9,75 +9,31 @@ import {
 import { supabase } from './supabaseClient';
 
 // ==========================================
-// HELPER: KIRIM EMAIL AUTOMATION VIA RESEND
+// HELPER: KIRIM EMAIL VIA VERCEL SERVERLESS FUNCTION
 // ==========================================
 const sendConfirmationEmail = async ({ toEmail, name, tickets, eventName, eventDate, eventVenue }) => {
   if (!toEmail) return;
 
-  const ticketItemsHtml = tickets.map((t, idx) => `
-    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 10px; text-align: center;">
-      <p style="margin: 0 0 4px 0; font-size: 11px; color: #64748b; font-weight: bold;">TIKET #${idx + 1} (${t.category})</p>
-      <h3 style="margin: 0 0 8px 0; color: #0f172a; font-size: 15px;">${t.name}</h3>
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${t.ticket_id}" alt="QR Code" style="width: 140px; height: 140px; border: 1px solid #e2e8f0; padding: 4px; border-radius: 6px;" />
-      <p style="margin: 6px 0 0 0; font-family: monospace; font-weight: bold; color: #0d9488; font-size: 14px; background-color: #f1f5f9; padding: 4px 8px; border-radius: 4px; display: inline-block;">
-        ${t.ticket_id}
-      </p>
-    </div>
-  `).join('');
-
-  const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
-      <div style="background-color: #0f172a; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h2 style="color: #ffffff; margin: 0; font-size: 18px;">GII Holis - E-Tiket Konfirmasi</h2>
-      </div>
-      <div style="background-color: #ffffff; padding: 20px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0; border-top: none;">
-        <h3 style="color: #0d9488; margin-top: 0;">Halo, ${name}!</h3>
-        <p style="color: #334155; font-size: 13px; line-height: 1.5;">
-          Terima kasih telah melakukan pendaftaran. Berikut adalah detail konfirmasi dan <strong>E-Tiket QR</strong> untuk kegiatan:
-        </p>
-        
-        <div style="background-color: #f1f5f9; padding: 12px; border-radius: 8px; margin: 15px 0; font-size: 12px; color: #334155;">
-          <p style="margin: 3px 0;">📌 <strong>Acara:</strong> ${eventName}</p>
-          <p style="margin: 3px 0;">📅 <strong>Waktu:</strong> ${eventDate}</p>
-          <p style="margin: 3px 0;">📍 <strong>Lokasi:</strong> ${eventVenue}</p>
-        </div>
-
-        <h4 style="color: #0f172a; font-size: 13px; margin-bottom: 10px; text-align: center; uppercase; letter-spacing: 0.5px;">Daftar E-Tiket Resmi</h4>
-        ${ticketItemsHtml}
-
-        <p style="color: #64748b; font-size: 11px; text-align: center; margin-top: 20px;">
-          Tunjukkan QR Code di atas kepada petugas check-in saat memasuki ruangan ibadah/kegiatan.
-        </p>
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;" />
-        <p style="color: #94a3b8; font-size: 10px; text-align: center; margin: 0;">
-          GII Hok Im Tong Holis Bandung — Otomasi Tiket Jemaat
-        </p>
-      </div>
-    </div>
-  `;
-
   try {
-    const apiKey = import.meta.env.VITE_RESEND_API_KEY;
-    if (!apiKey) {
-      console.warn('VITE_RESEND_API_KEY belum dikonfigurasi di Environment Variables.');
-      return;
-    }
-
-    await fetch('https://api.resend.com/emails', {
+    const res = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'GII Holis Ticket <onboarding@resend.dev>',
-        to: [toEmail],
-        subject: `[E-Tiket Resmi] Pendaftaran ${eventName} - ${name}`,
-        html: htmlContent
+        toEmail,
+        name,
+        tickets,
+        eventName,
+        eventDate,
+        eventVenue
       })
     });
+
+    const data = await res.json();
+    console.log('Response dari Vercel Serverless Email Function:', data);
   } catch (err) {
-    console.error('Gagal mengirim email otomatis:', err);
+    console.error('Gagal memanggil API kirim email:', err);
   }
 };
 
@@ -272,7 +228,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       .select('id, name, whatsapp')
       .eq('event_id', eventId)
       .eq('whatsapp', fullFormattedPhone)
-      .ilike('name', cleanInputName) // ilike = case insensitive check (jesslyn & Jesslyn dianggap sama)
+      .ilike('name', cleanInputName)
       .maybeSingle();
 
     if (dupError) {
@@ -1853,16 +1809,16 @@ function EmailModule() {
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg space-y-2">
           <div className="flex items-center justify-between">
             <span className="font-bold text-emerald-900">Status API Resend:</span>
-            <span className="bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded font-bold text-[10px]">AKTIF</span>
+            <span className="bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded font-bold text-[10px]">AKTIF (SERVERLESS)</span>
           </div>
           <p className="text-emerald-800">
-            Email konfirmasi + QR Code tiket akan terkirim secara otomatis tiap jemaat selesai mengisi form pendaftaran.
+            Email konfirmasi + QR Code tiket akan terkirim secara otomatis via Vercel Backend Serverless Function tiap jemaat selesai mengisi form pendaftaran.
           </p>
         </div>
 
         <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-1 font-mono text-[11px]">
           <div><strong>Domain Pengirim:</strong> onboarding@resend.dev</div>
-          <div><strong>API Key Status:</strong> Loaded (via Environment Variable VITE_RESEND_API_KEY)</div>
+          <div><strong>API Key Status:</strong> Secured via Vercel Serverless (RESEND_API_KEY)</div>
         </div>
       </div>
     </div>
