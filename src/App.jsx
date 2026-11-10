@@ -198,14 +198,14 @@ export default function App() {
     senderName: 'Panitia Acara GII Holis'
   });
 
-  // User Role State (Default ke CHECKIN_STAFF jika metadata tidak ditemukan)
+  // User Role State
   const [currentRole, setCurrentRole] = useState('CHECKIN_STAFF');
 
   // Scanner & Toast
   const [scannerSearchQuery, setScannerSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Check Supabase Auth Session & Set Role Dynamically
+  // Check Supabase Auth Session & Set Role Dynamically + Auto Redirect
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -213,11 +213,20 @@ export default function App() {
         const userEmail = session.user.email;
         const metaRole = session.user.user_metadata?.role;
         
-        // Akun Utama Otomatis Super Admin & Pengguna Lain Sesuai Metadata Supabase
+        let determinedRole = 'CHECKIN_STAFF';
         if (userEmail === 'joshuamerian8@gmail.com') {
-          setCurrentRole('SUPER_ADMIN');
+          determinedRole = 'SUPER_ADMIN';
+        } else if (metaRole) {
+          determinedRole = metaRole;
+        }
+        
+        setCurrentRole(determinedRole);
+        
+        // AUTO REDIRECT SESUAI ROLE
+        if (determinedRole === 'CHECKIN_STAFF') {
+          setActiveTab('checkin');
         } else {
-          setCurrentRole(metaRole || 'CHECKIN_STAFF');
+          setActiveTab('dashboard');
         }
       }
       setCheckingAuth(false);
@@ -229,10 +238,19 @@ export default function App() {
         const userEmail = session.user.email;
         const metaRole = session.user.user_metadata?.role;
         
+        let determinedRole = 'CHECKIN_STAFF';
         if (userEmail === 'joshuamerian8@gmail.com') {
-          setCurrentRole('SUPER_ADMIN');
+          determinedRole = 'SUPER_ADMIN';
+        } else if (metaRole) {
+          determinedRole = metaRole;
+        }
+
+        setCurrentRole(determinedRole);
+        
+        if (determinedRole === 'CHECKIN_STAFF') {
+          setActiveTab('checkin');
         } else {
-          setCurrentRole(metaRole || 'CHECKIN_STAFF');
+          setActiveTab('dashboard');
         }
       }
       setCheckingAuth(false);
@@ -411,7 +429,19 @@ export default function App() {
           {activeTab === 'email' && <EmailModule showToast={showToast} />}
           {activeTab === 'whatsapp' && <WhatsAppModule showToast={showToast} />}
           {activeTab === 'reports' && <ReportsModule events={events} registrations={registrations} contacts={contacts} />}
-          {activeTab === 'roles' && <RolesModule currentRole={currentRole} setCurrentRole={setCurrentRole} showToast={showToast} />}
+          
+          {/* PROTEKSI HAK AKSES MODUL ROLES */}
+          {activeTab === 'roles' && (
+            currentRole === 'SUPER_ADMIN' ? (
+              <RolesModule currentRole={currentRole} setCurrentRole={setCurrentRole} showToast={showToast} />
+            ) : (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-center text-rose-700 space-y-2">
+                <h3 className="font-bold text-sm">⛔ Akses Ditolak</h3>
+                <p className="text-xs">Halaman Pengaturan Peran & Hak Akses hanya dapat diakses oleh Super Admin.</p>
+              </div>
+            )
+          )}
+          
           {activeTab === 'settings' && <SettingsModule branding={branding} setBranding={setBranding} showToast={showToast} />}
         </div>
       </main>
@@ -1301,7 +1331,6 @@ function ReportsModule({ events, registrations, contacts }) {
   );
 }
 
-// MODULE 12: USER ROLES & PRIVACY
 // MODULE 12: USER ROLES & PRIVACY (Hanya Akses Super Admin)
 function RolesModule({ currentRole, setCurrentRole, showToast }) {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -1314,13 +1343,12 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
     e.preventDefault();
     setLoading(true);
 
-    // Mendaftarkan user baru ke Supabase Auth dengan User Metadata Role
     const { data, error } = await supabase.auth.signUp({
       email: newUserEmail,
       password: newUserPassword,
       options: {
         data: {
-          role: selectedRole, // Otomatis tersimpan ke raw_user_meta_data
+          role: selectedRole,
         },
       },
     });
@@ -1346,7 +1374,6 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
           <p className="text-xs text-slate-500">Kelola pengguna, penetapan role, dan kepatuhan UU PDP No. 27/2022</p>
         </div>
         
-        {/* Tombol Tambah User Khusus Super Admin */}
         <button 
           onClick={() => setShowAddModal(true)} 
           className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-2 shadow"
@@ -1374,7 +1401,6 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
         </div>
       </div>
 
-      {/* MODAL FORM TAMBAH USER BARU */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200">
