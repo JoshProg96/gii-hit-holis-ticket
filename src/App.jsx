@@ -679,17 +679,17 @@ export default function App() {
           {currentRole === 'SUPER_ADMIN' && (
             <>
               <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Jemaat & CRM</div>
-              <SidebarItem id="contacts" icon={<Users size={18} />} label="Kontak & CRM Jemaat" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
-              <SidebarItem id="invitations" icon={<Share2 size={18} />} label="Undangan Digital" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
-              <SidebarItem id="giftcards" icon={<Gift size={18} />} label="Digital Gift Cards" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
-              <SidebarItem id="engagement" icon={<Heart size={18} />} label="Engagement Center" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
+              <SidebarItem id="contacts" icon={<Users size={18} />} label="Kontak & CRM Jemaat" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
+              <SidebarItem id="invitations" icon={<Share2 size={18} />} label="Undangan Digital" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
+              <SidebarItem id="giftcards" icon={<Gift size={18} />} label="Digital Gift Cards" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
+              <SidebarItem id="engagement" icon={<Heart size={18} />} label="Engagement Center" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
 
               <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Otomasi & Pesan</div>
-              <SidebarItem id="email" icon={<Mail size={18} />} label="Kampanye Email" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
+              <SidebarItem id="email" icon={<Mail size={18} />} label="Kampanye Email" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
               <SidebarItem id="whatsapp" icon={<MessageSquare size={18} />} label="Integrasi WhatsApp" active={activeTab} setActive={setActiveTab} statusTag="PENDING" closeMobile={() => setMobileMenuOpen(false)} />
 
               <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Sistem & Pengaturan</div>
-              <SidebarItem id="reports" icon={<BarChart3 size={18} />} label="Laporan & Export" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
+              <SidebarItem id="reports" icon={<BarChart3 size={18} />} label="Laporan & Export" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
               <SidebarItem id="roles" icon={<Shield size={18} />} label="Pengguna & Akses" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
               <SidebarItem id="settings" icon={<Settings size={18} />} label="Pengaturan Sistem" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
             </>
@@ -733,15 +733,15 @@ export default function App() {
               {activeTab === 'events' && 'Manajemen Acara'}
               {activeTab === 'registrations' && 'Data Pendaftaran Jemaat'}
               {activeTab === 'checkin' && 'Scanner Tiket QR'}
-              {activeTab === 'contacts' && 'Database Jemaat'}
+              {activeTab === 'contacts' && 'Kontak & CRM Jemaat'}
               {activeTab === 'invitations' && 'Undangan Digital'}
-              {activeTab === 'giftcards' && 'Digital Gift Card'}
+              {activeTab === 'giftcards' && 'Digital Gift Cards'}
               {activeTab === 'engagement' && 'Engagement Center'}
               {activeTab === 'email' && 'Kampanye Email'}
               {activeTab === 'whatsapp' && 'Integrasi WhatsApp'}
-              {activeTab === 'reports' && 'Laporan Kehadiran'}
-              {activeTab === 'roles' && 'Pengaturan Hak Akses'}
-              {activeTab === 'settings' && 'Pengaturan Branding'}
+              {activeTab === 'reports' && 'Laporan & Export'}
+              {activeTab === 'roles' && 'Pengguna & Akses'}
+              {activeTab === 'settings' && 'Pengaturan Sistem'}
             </h2>
           </div>
 
@@ -780,13 +780,13 @@ export default function App() {
             )
           )}
 
-          {activeTab === 'contacts' && <ContactsModule contacts={contacts} setContacts={setContacts} showToast={showToast} />}
-          {activeTab === 'invitations' && <DigitalInvitationsModule events={events} showToast={showToast} />}
-          {activeTab === 'giftcards' && <GiftCardsModule showToast={showToast} />}
-          {activeTab === 'engagement' && <EngagementModule contacts={contacts} showToast={showToast} />}
-          {activeTab === 'email' && <EmailModule showToast={showToast} />}
-          {activeTab === 'whatsapp' && <WhatsAppModule showToast={showToast} />}
-          {activeTab === 'reports' && <ReportsModule events={events} registrations={registrations} contacts={contacts} />}
+          {activeTab === 'contacts' && <ContactsModule />}
+          {activeTab === 'invitations' && <DigitalInvitationsModule />}
+          {activeTab === 'giftcards' && <GiftCardsModule />}
+          {activeTab === 'engagement' && <EngagementModule />}
+          {activeTab === 'email' && <EmailModule />}
+          {activeTab === 'whatsapp' && <WhatsAppModule />}
+          {activeTab === 'reports' && <ReportsModule />}
           
           {activeTab === 'roles' && (
             currentRole === 'SUPER_ADMIN' ? (
@@ -799,7 +799,7 @@ export default function App() {
             )
           )}
           
-          {activeTab === 'settings' && <SettingsModule branding={branding} setBranding={setBranding} showToast={showToast} />}
+          {activeTab === 'settings' && <SettingsModule />}
         </div>
       </main>
     </div>
@@ -889,66 +889,64 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
                         <span>📅 {evt.date}</span>
                         <span>📍 {evt.venue}</span>
                       </p>
-                    </div>
-
-                    <div className="w-full md:w-48 space-y-1 shrink-0">
-                      <div className="flex justify-between text-xs font-semibold text-slate-700">
-                        <span>Terisi: {evt.registered} / {isUnlimited ? '∞ Unlimited' : evt.capacity}</span>
-                        {!isUnlimited && <span>{pct}%</span>}
-                      </div>
-                      {!isUnlimited && (
-                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                          <div className="bg-teal-600 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }}></div>
-                        </div>
-                      )}
-                    </div>
                   </div>
-                );
-              })
+
+                  <div className="w-full md:w-48 space-y-1 shrink-0">
+                    <div className="flex justify-between text-xs font-semibold text-slate-700">
+                      <span>Terisi: {evt.registered} / {isUnlimited ? '∞ Unlimited' : evt.capacity}</span>
+                      {!isUnlimited && <span>{pct}%</span>}
+                    </div>
+                    {!isUnlimited && (
+                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                        <div className="bg-teal-600 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }}></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 shadow-sm space-y-4 flex flex-col justify-between">
+        <div>
+          <h3 className="font-bold text-slate-800 text-xs md:text-sm pb-3 border-b border-slate-100 flex items-center gap-2">
+            <Sparkles size={18} className="text-amber-500" /> Aksi Cepat Operasional
+          </h3>
+          
+          <div className="mt-4 space-y-2.5">
+            {['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) && (
+              <button onClick={() => setActiveTab('checkin')} className="w-full text-left p-3 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 flex items-center justify-between transition">
+                <div className="flex items-center gap-3">
+                  <QrCode size={20} className="text-teal-700 shrink-0" />
+                  <div>
+                    <div className="font-bold text-xs">Buka Scanner Kamera QR</div>
+                    <div className="text-[11px] text-teal-700">Check-in peserta di pintu masuk</div>
+                  </div>
+                </div>
+                <ArrowRight size={16} className="text-teal-700 shrink-0" />
+              </button>
+            )}
+
+            {currentRole !== 'CHECKIN_STAFF' && (
+              <button onClick={() => setActiveTab('events')} className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition">
+                <div className="flex items-center gap-3">
+                  <Plus size={20} className="text-slate-600 shrink-0" />
+                  <div>
+                    <div className="font-bold text-xs">Buat Acara Baru</div>
+                    <div className="text-[11px] text-slate-500">Tambah kegiatan ibadah atau seminar</div>
+                  </div>
+                </div>
+                <ArrowRight size={16} className="text-slate-400 shrink-0" />
+              </button>
             )}
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 shadow-sm space-y-4 flex flex-col justify-between">
-          <div>
-            <h3 className="font-bold text-slate-800 text-xs md:text-sm pb-3 border-b border-slate-100 flex items-center gap-2">
-              <Sparkles size={18} className="text-amber-500" /> Aksi Cepat Operasional
-            </h3>
-            
-            <div className="mt-4 space-y-2.5">
-              {['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) && (
-                <button onClick={() => setActiveTab('checkin')} className="w-full text-left p-3 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 flex items-center justify-between transition">
-                  <div className="flex items-center gap-3">
-                    <QrCode size={20} className="text-teal-700 shrink-0" />
-                    <div>
-                      <div className="font-bold text-xs">Buka Scanner Kamera QR</div>
-                      <div className="text-[11px] text-teal-700">Check-in peserta di pintu masuk</div>
-                    </div>
-                  </div>
-                  <ArrowRight size={16} className="text-teal-700 shrink-0" />
-                </button>
-              )}
-
-              {/* Tombol Buat Acara Baru disembunyikan khusus untuk Staff Check-In */}
-              {currentRole !== 'CHECKIN_STAFF' && (
-                <button onClick={() => setActiveTab('events')} className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition">
-                  <div className="flex items-center gap-3">
-                    <Plus size={20} className="text-slate-600 shrink-0" />
-                    <div>
-                      <div className="font-bold text-xs">Buat Acara Baru</div>
-                      <div className="text-[11px] text-slate-500">Tambah kegiatan ibadah atau seminar</div>
-                    </div>
-                  </div>
-                  <ArrowRight size={16} className="text-slate-400 shrink-0" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="p-3 bg-slate-100 rounded-lg text-xs text-slate-600 border border-slate-200 flex items-center gap-2">
-            <Lock size={16} className="text-slate-400 shrink-0" />
-            <span>Sistem penyimpanan terenkripsi & aman.</span>
-          </div>
+        <div className="p-3 bg-slate-100 rounded-lg text-xs text-slate-600 border border-slate-200 flex items-center gap-2">
+          <Lock size={16} className="text-slate-400 shrink-0" />
+          <span>Sistem penyimpanan terenkripsi & aman.</span>
         </div>
       </div>
     </div>
@@ -1661,12 +1659,12 @@ function RegistrationsModule({ events, showToast }) {
                             disabled={processingId === mem.id}
                             onClick={() => handleManualCheckIn(mem, reg.event_id)}
                             className="w-full py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-md shadow-sm transition flex items-center justify-center gap-1 disabled:opacity-50"
-                          >
+                        >
                             {processingId === mem.id ? 'Memproses...' : '✓ Set Hadir Manual'}
                           </button>
                         )}
                       </div>
-                    </div>
+                  </div>
                   ))}
                 </div>
               </div>
@@ -2037,13 +2035,27 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
 }
 
 // ==========================================
-// MODULE LAINNYA
+// ONGOING MODULE PLACEHOLDERS
 // ==========================================
-function ContactsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Database Jemaat</div>; }
-function DigitalInvitationsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Modul Undangan Digital</div>; }
-function GiftCardsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Modul Gift Cards</div>; }
-function EngagementModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Engagement Center</div>; }
-function EmailModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Kampanye Email</div>; }
-function WhatsAppModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Integrasi WhatsApp</div>; }
-function ReportsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Laporan Analytics</div>; }
-function SettingsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Pengaturan Sistem</div>; }
+function OngoingModuleTitle({ title }) {
+  return (
+    <div className="bg-white p-8 rounded-xl border border-slate-200 text-center space-y-3 shadow-sm">
+      <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto border border-amber-200 font-bold text-lg">
+        ⏳
+      </div>
+      <h3 className="font-bold text-base text-slate-900">{title}</h3>
+      <p className="text-xs text-slate-500 max-w-md mx-auto">
+        Modul ini sedang dalam tahap pengembangan (*Ongoing*) untuk pembaruan sistem berikutnya. Fokus utama saat ini sudah siap digunakan untuk *Go Live* manajemen acara dan check-in tiket!
+      </p>
+    </div>
+  );
+}
+
+function ContactsModule() { return <OngoingModuleTitle title="Kontak & CRM Jemaat" />; }
+function DigitalInvitationsModule() { return <OngoingModuleTitle title="Undangan Digital" />; }
+function GiftCardsModule() { return <OngoingModuleTitle title="Digital Gift Cards" />; }
+function EngagementModule() { return <OngoingModuleTitle title="Engagement Center" />; }
+function EmailModule() { return <OngoingModuleTitle title="Kampanye Email Otomatis" />; }
+function WhatsAppModule() { return <OngoingModuleTitle title="Integrasi WhatsApp Gateway" />; }
+function ReportsModule() { return <OngoingModuleTitle title="Laporan & Export Data" />; }
+function SettingsModule() { return <OngoingModuleTitle title="Pengaturan Sistem & Branding" />; }
