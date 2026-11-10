@@ -411,7 +411,7 @@ export default function App() {
           {activeTab === 'email' && <EmailModule showToast={showToast} />}
           {activeTab === 'whatsapp' && <WhatsAppModule showToast={showToast} />}
           {activeTab === 'reports' && <ReportsModule events={events} registrations={registrations} contacts={contacts} />}
-          {activeTab === 'roles' && <RolesModule currentRole={currentRole} setCurrentRole={setCurrentRole} />}
+          {activeTab === 'roles' && <RolesModule currentRole={currentRole} setCurrentRole={setCurrentRole} showToast={showToast} />}
           {activeTab === 'settings' && <SettingsModule branding={branding} setBranding={setBranding} showToast={showToast} />}
         </div>
       </main>
