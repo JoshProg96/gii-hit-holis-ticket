@@ -1724,12 +1724,13 @@ function RegistrationsModule({ events, showToast }) {
 }
 
 // ==========================================
-// MODULE: MANAJEMEN USER & ROLES (SUPABASE CONNECTED)
+// MODULE: MANAJEMEN USER & ROLES (FULL CRUD SUPABASE)
 // ==========================================
 function RolesModule({ currentRole, setCurrentRole, showToast }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
   
   const [newUser, setNewUser] = useState({ 
@@ -1737,6 +1738,14 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
     name: '', 
     role: 'CHECKIN_STAFF', 
     password: '' 
+  });
+
+  const [editUser, setEditUser] = useState({
+    id: '',
+    name: '',
+    email: '',
+    role: 'CHECKIN_STAFF',
+    status: 'Aktif'
   });
 
   const fetchUsers = async () => {
@@ -1768,7 +1777,6 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
 
     setSaving(true);
 
-    // 1. Buat akun di Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: newUser.email,
       password: newUser.password,
@@ -1785,7 +1793,6 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
 
     const userId = authData.user?.id || `USR-${Date.now()}`;
 
-    // 2. Simpan detail tambahan ke tabel public.profiles
     const { error: profileError } = await supabase.from('profiles').insert([{
       id: userId,
       name: newUser.name,
@@ -1806,14 +1813,50 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
     }
   };
 
+  const handleOpenEdit = (user) => {
+    setEditUser({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status || 'Aktif'
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        name: editUser.name,
+        role: editUser.role,
+        status: editUser.status
+      })
+      .eq('id', editUser.id);
+
+    setSaving(false);
+
+    if (error) {
+      showToast(`Gagal memperbarui pengguna: ${error.message}`, 'error');
+    } else {
+      showToast(`Pengguna ${editUser.name} berhasil diperbarui!`);
+      setShowEditModal(false);
+      fetchUsers();
+    }
+  };
+
   const handleDeleteUser = async (id, name) => {
     if (!window.confirm(`Apakah Anda yakin ingin menghapus akses untuk ${name}?`)) return;
 
     const { error } = await supabase.from('profiles').delete().eq('id', id);
+    
     if (error) {
       showToast(`Gagal menghapus user: ${error.message}`, 'error');
     } else {
-      showToast(`Pengguna ${name} berhasil dihapus.`);
+      showToast(`Pengguna ${name} berhasil dihapus dari database.`);
       fetchUsers();
     }
   };
@@ -1873,10 +1916,16 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
                     </td>
                     <td className="p-3">
                       <span className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[10px] font-bold">
-                        {u.status}
+                        {u.status || 'Aktif'}
                       </span>
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-right space-x-2">
+                      <button 
+                        onClick={() => handleOpenEdit(u)} 
+                        className="text-teal-600 hover:underline font-semibold"
+                      >
+                        Edit
+                      </button>
                       <button 
                         onClick={() => handleDeleteUser(u.id, u.name)} 
                         className="text-rose-600 hover:underline font-semibold"
@@ -1892,6 +1941,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
         )}
       </div>
 
+      {/* MODAL TAMBAH PENGGUNA */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
@@ -1928,6 +1978,53 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
                 <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-slate-600">Batal</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">
                   {saving ? 'Menyimpan...' : 'Simpan Pengguna'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT PENGGUNA */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
+            <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm">Edit Pengguna: {editUser.name}</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <form onSubmit={handleUpdateUser} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Nama Lengkap *</label>
+                <input required type="text" value={editUser.name} onChange={e => setEditUser({...editUser, name: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Email Login (Read-only)</label>
+                <input disabled type="email" value={editUser.email} className="w-full p-2.5 border rounded-lg border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed" />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Hak Akses (Role)</label>
+                <select value={editUser.role} onChange={e => setEditUser({...editUser, role: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
+                  <option value="CHECKIN_STAFF">Staff Check-In (Scanner QR)</option>
+                  <option value="EVENT_ADMIN">Event Admin (Kelola Acara & Pendaftaran)</option>
+                  <option value="SUPER_ADMIN">Super Admin (Akses Penuh)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Status Akun</label>
+                <select value={editUser.status} onChange={e => setEditUser({...editUser, status: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
+                  <option value="Aktif">Aktif</option>
+                  <option value="Non-Aktif">Non-Aktif</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 border rounded-lg text-slate-600">Batal</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                  {saving ? 'Menyimpan...' : 'Perbarui Pengguna'}
                 </button>
               </div>
             </form>
