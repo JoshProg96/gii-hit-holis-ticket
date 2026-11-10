@@ -1724,37 +1724,98 @@ function RegistrationsModule({ events, showToast }) {
 }
 
 // ==========================================
-// MODULE: MANAJEMEN USER & ROLES (RESTORED)
+// MODULE: MANAJEMEN USER & ROLES (SUPABASE CONNECTED)
 // ==========================================
 function RolesModule({ currentRole, setCurrentRole, showToast }) {
-  const [users, setUsers] = useState([
-    { id: '1', email: 'joshuamerian8@gmail.com', name: 'Joshua Merian Limas', role: 'SUPER_ADMIN', status: 'Aktif' },
-    { id: '2', email: 'staff.checkin@giiholis.org', name: 'Staff Pintu Masuk', role: 'CHECKIN_STAFF', status: 'Aktif' },
-    { id: '3', email: 'admin.event@giiholis.org', name: 'Admin Acara', role: 'EVENT_ADMIN', status: 'Aktif' },
-  ]);
-
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newUser, setNewUser] = useState({ email: '', name: '', role: 'CHECKIN_STAFF', password: '' });
+  const [saving, setSaving] = useState(false);
+  
+  const [newUser, setNewUser] = useState({ 
+    email: '', 
+    name: '', 
+    role: 'CHECKIN_STAFF', 
+    password: '' 
+  });
 
-  const handleAddUser = (e) => {
+  const fetchUsers = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Gagal memuat profil pengguna:', error);
+      if (showToast) showToast('Gagal memuat data pengguna', 'error');
+    } else {
+      setUsers(data || []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const handleAddUser = async (e) => {
     e.preventDefault();
-    if (!newUser.email || !newUser.name) {
-      showToast('Mohon lengkapi email dan nama pengguna.', 'error');
+    if (!newUser.email || !newUser.name || !newUser.password) {
+      showToast('Mohon lengkapi email, nama, dan password.', 'error');
       return;
     }
 
-    const createdUser = {
-      id: `USR-${Date.now()}`,
+    setSaving(true);
+
+    // 1. Buat akun di Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email: newUser.email,
+      password: newUser.password,
+      options: {
+        data: { role: newUser.role, name: newUser.name }
+      }
+    });
+
+    if (authError) {
+      showToast(`Gagal mendaftarkan user auth: ${authError.message}`, 'error');
+      setSaving(false);
+      return;
+    }
+
+    const userId = authData.user?.id || `USR-${Date.now()}`;
+
+    // 2. Simpan detail tambahan ke tabel public.profiles
+    const { error: profileError } = await supabase.from('profiles').insert([{
+      id: userId,
       name: newUser.name,
+      email: newUser.email,
       role: newUser.role,
       status: 'Aktif'
-    };
+    }]);
 
-    setUsers([createdUser, ...users]);
-    showToast(`Berhasil menambahkan user ${newUser.name}!`);
-    setShowAddModal(false);
-    setNewUser({ email: '', name: '', role: 'CHECKIN_STAFF', password: '' });
+    setSaving(false);
+
+    if (profileError) {
+      showToast(`Gagal menyimpan profil: ${profileError.message}`, 'error');
+    } else {
+      showToast(`Berhasil menambahkan pengguna ${newUser.name}!`);
+      setShowAddModal(false);
+      setNewUser({ email: '', name: '', role: 'CHECKIN_STAFF', password: '' });
+      fetchUsers();
+    }
+  };
+
+  const handleDeleteUser = async (id, name) => {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus akses untuk ${name}?`)) return;
+
+    const { error } = await supabase.from('profiles').delete().eq('id', id);
+    if (error) {
+      showToast(`Gagal menghapus user: ${error.message}`, 'error');
+    } else {
+      showToast(`Pengguna ${name} berhasil dihapus.`);
+      fetchUsers();
+    }
   };
 
   return (
@@ -1762,7 +1823,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div>
           <h3 className="font-bold text-base text-slate-900">Manajemen Pengguna & Hak Akses</h3>
-          <p className="text-xs text-slate-500">Kelola akun administrator, event admin, dan staff check-in</p>
+          <p className="text-xs text-slate-500">Kelola akun administrator, event admin, dan staff check-in database Supabase</p>
         </div>
         <button 
           onClick={() => setShowAddModal(true)} 
@@ -1773,58 +1834,69 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                <th className="p-3 font-semibold">Nama & Email</th>
-                <th className="p-3 font-semibold">Peran (Role)</th>
-                <th className="p-3 font-semibold">Status</th>
-                <th className="p-3 font-semibold text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {users.map(u => (
-                <tr key={u.id} className="hover:bg-slate-50/50">
-                  <td className="p-3">
-                    <div className="font-bold text-slate-900">{u.name}</div>
-                    <div className="text-slate-500 font-mono text-[11px]">{u.email}</div>
-                  </td>
-                  <td className="p-3">
-                    <span className={`px-2 py-1 rounded text-[10px] font-bold ${
-                      u.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-800' :
-                      u.role === 'EVENT_ADMIN' ? 'bg-blue-100 text-blue-800' : 'bg-teal-100 text-teal-800'
-                    }`}>
-                      {u.role === 'SUPER_ADMIN' && '🛡️ Super Admin'}
-                      {u.role === 'EVENT_ADMIN' && '📅 Event Admin'}
-                      {u.role === 'CHECKIN_STAFF' && '🎟️ Staff Check-In'}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <span className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[10px] font-bold">
-                      {u.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <button 
-                      onClick={() => showToast(`Fitur edit untuk ${u.name} segera hadir`)} 
-                      className="text-teal-600 hover:underline font-semibold mr-2"
-                    >
-                      Edit
-                    </button>
-                  </td>
+        {loading ? (
+          <div className="p-12 text-center text-xs text-slate-500">
+            <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+            Memuat data pengguna dari Supabase...
+          </div>
+        ) : users.length === 0 ? (
+          <div className="p-12 text-center text-xs text-slate-400">
+            Belum ada data pengguna tersimpan di tabel profiles. Klik "Tambah Pengguna Baru" untuk mulai.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                  <th className="p-3 font-semibold">Nama & Email</th>
+                  <th className="p-3 font-semibold">Peran (Role)</th>
+                  <th className="p-3 font-semibold">Status</th>
+                  <th className="p-3 font-semibold text-right">Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {users.map(u => (
+                  <tr key={u.id} className="hover:bg-slate-50/50">
+                    <td className="p-3">
+                      <div className="font-bold text-slate-900">{u.name}</div>
+                      <div className="text-slate-500 font-mono text-[11px]">{u.email}</div>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-1 rounded text-[10px] font-bold ${
+                        u.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-800' :
+                        u.role === 'EVENT_ADMIN' ? 'bg-blue-100 text-blue-800' : 'bg-teal-100 text-teal-800'
+                      }`}>
+                        {u.role === 'SUPER_ADMIN' && '🛡️ Super Admin'}
+                        {u.role === 'EVENT_ADMIN' && '📅 Event Admin'}
+                        {u.role === 'CHECKIN_STAFF' && '🎟️ Staff Check-In'}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[10px] font-bold">
+                        {u.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <button 
+                        onClick={() => handleDeleteUser(u.id, u.name)} 
+                        className="text-rose-600 hover:underline font-semibold"
+                      >
+                        Hapus
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
             <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
-              <h3 className="font-bold text-sm">Tambah Pengguna Baru</h3>
+              <h3 className="font-bold text-sm">Tambah Pengguna Baru ke Supabase</h3>
               <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
             <form onSubmit={handleAddUser} className="p-6 space-y-4 text-xs">
@@ -1839,7 +1911,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1 text-slate-700">Password Sementara *</label>
+                <label className="block font-semibold mb-1 text-slate-700">Password Login *</label>
                 <input required type="password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="••••••••" className="w-full p-2.5 border rounded-lg border-slate-300" />
               </div>
 
@@ -1854,7 +1926,9 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
 
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-slate-600">Batal</button>
-                <button type="submit" className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700">Simpan Pengguna</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                  {saving ? 'Menyimpan...' : 'Simpan Pengguna'}
+                </button>
               </div>
             </form>
           </div>
