@@ -1724,6 +1724,147 @@ function RegistrationsModule({ events, showToast }) {
 }
 
 // ==========================================
+// MODULE: MANAJEMEN USER & ROLES (RESTORED)
+// ==========================================
+function RolesModule({ currentRole, setCurrentRole, showToast }) {
+  const [users, setUsers] = useState([
+    { id: '1', email: 'joshuamerian8@gmail.com', name: 'Joshua Merian Limas', role: 'SUPER_ADMIN', status: 'Aktif' },
+    { id: '2', email: 'staff.checkin@giiholis.org', name: 'Staff Pintu Masuk', role: 'CHECKIN_STAFF', status: 'Aktif' },
+    { id: '3', email: 'admin.event@giiholis.org', name: 'Admin Acara', role: 'EVENT_ADMIN', status: 'Aktif' },
+  ]);
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newUser, setNewUser] = useState({ email: '', name: '', role: 'CHECKIN_STAFF', password: '' });
+
+  const handleAddUser = (e) => {
+    e.preventDefault();
+    if (!newUser.email || !newUser.name) {
+      showToast('Mohon lengkapi email dan nama pengguna.', 'error');
+      return;
+    }
+
+    const createdUser = {
+      id: `USR-${Date.now()}`,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role,
+      status: 'Aktif'
+    };
+
+    setUsers([createdUser, ...users]);
+    showToast(`Berhasil menambahkan user ${newUser.name}!`);
+    setShowAddModal(false);
+    setNewUser({ email: '', name: '', role: 'CHECKIN_STAFF', password: '' });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div>
+          <h3 className="font-bold text-base text-slate-900">Manajemen Pengguna & Hak Akses</h3>
+          <p className="text-xs text-slate-500">Kelola akun administrator, event admin, dan staff check-in</p>
+        </div>
+        <button 
+          onClick={() => setShowAddModal(true)} 
+          className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow"
+        >
+          <UserPlus size={16} /> Tambah Pengguna Baru
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                <th className="p-3 font-semibold">Nama & Email</th>
+                <th className="p-3 font-semibold">Peran (Role)</th>
+                <th className="p-3 font-semibold">Status</th>
+                <th className="p-3 font-semibold text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {users.map(u => (
+                <tr key={u.id} className="hover:bg-slate-50/50">
+                  <td className="p-3">
+                    <div className="font-bold text-slate-900">{u.name}</div>
+                    <div className="text-slate-500 font-mono text-[11px]">{u.email}</div>
+                  </td>
+                  <td className="p-3">
+                    <span className={`px-2 py-1 rounded text-[10px] font-bold ${
+                      u.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-800' :
+                      u.role === 'EVENT_ADMIN' ? 'bg-blue-100 text-blue-800' : 'bg-teal-100 text-teal-800'
+                    }`}>
+                      {u.role === 'SUPER_ADMIN' && '🛡️ Super Admin'}
+                      {u.role === 'EVENT_ADMIN' && '📅 Event Admin'}
+                      {u.role === 'CHECKIN_STAFF' && '🎟️ Staff Check-In'}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    <span className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[10px] font-bold">
+                      {u.status}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right">
+                    <button 
+                      onClick={() => showToast(`Fitur edit untuk ${u.name} segera hadir`)} 
+                      className="text-teal-600 hover:underline font-semibold mr-2"
+                    >
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
+            <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm">Tambah Pengguna Baru</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <form onSubmit={handleAddUser} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Nama Lengkap *</label>
+                <input required type="text" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} placeholder="Contoh: Budi Santoso" className="w-full p-2.5 border rounded-lg border-slate-300" />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Email Login *</label>
+                <input required type="email" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="budi@giiholis.org" className="w-full p-2.5 border rounded-lg border-slate-300" />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Password Sementara *</label>
+                <input required type="password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="••••••••" className="w-full p-2.5 border rounded-lg border-slate-300" />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Hak Akses (Role)</label>
+                <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
+                  <option value="CHECKIN_STAFF">Staff Check-In (Scanner QR)</option>
+                  <option value="EVENT_ADMIN">Event Admin (Kelola Acara & Pendaftaran)</option>
+                  <option value="SUPER_ADMIN">Super Admin (Akses Penuh)</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-slate-600">Batal</button>
+                <button type="submit" className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700">Simpan Pengguna</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
 // MODULE LAINNYA
 // ==========================================
 function ContactsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Database Jemaat</div>; }
@@ -1733,5 +1874,4 @@ function EngagementModule() { return <div className="bg-white p-6 rounded-xl bor
 function EmailModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Kampanye Email</div>; }
 function WhatsAppModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Integrasi WhatsApp</div>; }
 function ReportsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Laporan Analytics</div>; }
-function RolesModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Manajemen User & Roles</div>; }
 function SettingsModule() { return <div className="bg-white p-6 rounded-xl border border-slate-200 text-xs">Pengaturan Sistem</div>; }
