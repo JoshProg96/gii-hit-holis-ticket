@@ -348,8 +348,10 @@ export default function App() {
             </>
           )}
 
-          {/* Menu Check-In Scanner (Dapat Diakses Semua Role) */}
-          <SidebarItem id="checkin" icon={<QrCode size={18} />} label="Check-In Scanner QR" active={activeTab} setActive={setActiveTab} highlight closeMobile={() => setMobileMenuOpen(false)} />
+          {/* Menu Check-In Scanner (Hanya Super Admin & Staff Check-In, Event Admin Dihilangkan) */}
+          {['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) && (
+            <SidebarItem id="checkin" icon={<QrCode size={18} />} label="Check-In Scanner QR" active={activeTab} setActive={setActiveTab} highlight closeMobile={() => setMobileMenuOpen(false)} />
+          )}
 
           {/* Menu Terkunci Khusus Super Admin */}
           {currentRole === 'SUPER_ADMIN' && (
@@ -429,12 +431,15 @@ export default function App() {
               <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
               Server Online
             </span>
-            <button 
-              onClick={() => setActiveTab('checkin')}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-sm transition"
-            >
-              <QrCode size={16} /> <span className="hidden sm:inline">Buka Scanner</span> Quick
-            </button>
+            {/* Tombol Buka Scanner HANYA Tampil jika BUKAN Event Admin */}
+            {['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) && (
+              <button 
+                onClick={() => setActiveTab('checkin')}
+                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-sm transition"
+              >
+                <QrCode size={16} /> <span className="hidden sm:inline">Buka Scanner</span> Quick
+              </button>
+            )}
           </div>
         </header>
 
@@ -446,10 +451,22 @@ export default function App() {
         )}
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50">
-          {activeTab === 'dashboard' && <DashboardModule events={events} contacts={contacts} registrations={registrations} setActiveTab={setActiveTab} />}
+          {activeTab === 'dashboard' && <DashboardModule events={events} contacts={contacts} registrations={registrations} setActiveTab={setActiveTab} currentRole={currentRole} />}
           {activeTab === 'events' && <EventsModule events={events} setEvents={setEvents} showToast={showToast} />}
           {activeTab === 'registrations' && <RegistrationsModule registrations={registrations} setRegistrations={setRegistrations} events={events} showToast={showToast} />}
-          {activeTab === 'checkin' && <CheckInModule registrations={registrations} handleCheckInMember={handleCheckInMember} scannerSearchQuery={scannerSearchQuery} setScannerSearchQuery={setScannerSearchQuery} />}
+          
+          {/* PROTEKSI HAK AKSES MODUL CHECKIN SCANNER */}
+          {activeTab === 'checkin' && (
+            ['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) ? (
+              <CheckInModule registrations={registrations} handleCheckInMember={handleCheckInMember} scannerSearchQuery={scannerSearchQuery} setScannerSearchQuery={setScannerSearchQuery} />
+            ) : (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-center text-rose-700 space-y-2">
+                <h3 className="font-bold text-sm">⛔ Akses Ditolak</h3>
+                <p className="text-xs">Halaman Scanner QR hanya diperuntukkan untuk Staff Check-In & Super Admin.</p>
+              </div>
+            )
+          )}
+
           {activeTab === 'contacts' && <ContactsModule contacts={contacts} setContacts={setContacts} showToast={showToast} />}
           {activeTab === 'invitations' && <DigitalInvitationsModule events={events} showToast={showToast} />}
           {activeTab === 'giftcards' && <GiftCardsModule showToast={showToast} />}
@@ -512,7 +529,7 @@ function SidebarItem({ id, icon, label, active, setActive, badge, highlight, sta
 }
 
 // MODULE 1: DASHBOARD
-function DashboardModule({ events, contacts, registrations, setActiveTab }) {
+function DashboardModule({ events, contacts, registrations, setActiveTab, currentRole }) {
   const totalRegisteredMembers = registrations.reduce((acc, r) => acc + r.members.length, 0);
   const totalCheckedIn = registrations.reduce((acc, r) => acc + r.members.filter(m => m.checkedIn).length, 0);
 
@@ -574,16 +591,19 @@ function DashboardModule({ events, contacts, registrations, setActiveTab }) {
             </h3>
             
             <div className="mt-4 space-y-2.5">
-              <button onClick={() => setActiveTab('checkin')} className="w-full text-left p-3 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 flex items-center justify-between transition">
-                <div className="flex items-center gap-3">
-                  <QrCode size={20} className="text-teal-700 shrink-0" />
-                  <div>
-                    <div className="font-bold text-xs">Buka Scanner Kamera QR</div>
-                    <div className="text-[11px] text-teal-700">Check-in peserta di pintu masuk</div>
+              {/* Sembunyikan Tombol Scanner Kamera QR untuk Event Admin */}
+              {['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) && (
+                <button onClick={() => setActiveTab('checkin')} className="w-full text-left p-3 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 flex items-center justify-between transition">
+                  <div className="flex items-center gap-3">
+                    <QrCode size={20} className="text-teal-700 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">Buka Scanner Kamera QR</div>
+                      <div className="text-[11px] text-teal-700">Check-in peserta di pintu masuk</div>
+                    </div>
                   </div>
-                </div>
-                <ArrowRight size={16} className="text-teal-700 shrink-0" />
-              </button>
+                  <ArrowRight size={16} className="text-teal-700 shrink-0" />
+                </button>
+              )}
 
               <button onClick={() => setActiveTab('events')} className="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 flex items-center justify-between transition">
                 <div className="flex items-center gap-3">
@@ -1015,7 +1035,7 @@ function RegistrationsModule({ registrations, setRegistrations, events, showToas
   );
 }
 
-// MODULE 4: CHECK-IN SCANNER (FULL RESPONSIVE LAYOUT FOR IPHONE/ANDROID)
+// MODULE 4: CHECK-IN SCANNER
 function CheckInModule({ registrations, handleCheckInMember, scannerSearchQuery, setScannerSearchQuery }) {
   const allTickets = registrations.flatMap(r => 
     r.members.map(m => ({
@@ -1081,7 +1101,6 @@ function CheckInModule({ registrations, handleCheckInMember, scannerSearchQuery,
         </div>
       </div>
 
-      {/* TAMPILAN KARTU TIKET RESPONSIVE UNTUK HP */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center text-xs font-bold text-slate-700">
           <span>Daftar Tiket Terdaftar ({filteredTickets.length})</span>
@@ -1423,10 +1442,10 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
             <span className="px-2 py-0.5 rounded bg-teal-100 text-teal-800 text-[10px] font-bold">Akses Anda Saat Ini</span>
           </div>
           <div className="p-3 border rounded bg-slate-50">
-            <strong className="text-slate-900">2. 📅 Event Admin:</strong> Hanya dapat mengelola acara, pendaftaran, dan melihat daftar tiket.
+            <strong className="text-slate-900">2. 📅 Event Admin:</strong> Mengelola acara, pendaftaran, dan melihat daftar tiket (Tanpa Fitur Check-In Scanner).
           </div>
           <div className="p-3 border rounded bg-slate-50">
-            <strong className="text-slate-900">3. 🎟️ Staff Check-In:</strong> Hanya memiliki akses ke Scanner QR & verifikasi kehadiran di pintu masuk.
+            <strong className="text-slate-900">3. 🎟️ Staff Check-In:</strong> Khusus bertugas di pintu masuk untuk Scanner QR & verifikasi kehadiran.
           </div>
         </div>
       </div>
