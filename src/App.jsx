@@ -436,18 +436,43 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                 ))}
               </div>
             ) : (
-              <div className="p-4 bg-slate-800/80 rounded-xl border border-slate-700 text-center space-y-2">
-                <div className="text-emerald-400 text-xs font-bold">✓ Data Pendaftaran Tersimpan</div>
-                <p className="text-[11px] text-slate-400">
-                  Acara ini tidak memerlukan E-Tiket QR Code. Silakan tunjukkan nama/nomor WhatsApp Anda saat hadir di lokasi.
-                </p>
+              <div className="space-y-3">
+                <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 text-center space-y-1">
+                  <div className="text-emerald-400 text-xs font-bold">✓ Data Pendaftaran Berhasil Disimpan</div>
+                  <p className="text-[11px] text-slate-400">
+                    Acara ini tidak memerlukan E-Tiket QR Code. Berikut daftar peserta yang terdaftar:
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[11px] font-bold text-teal-400 uppercase tracking-wider">Daftar Peserta ({successRegistration.tickets.length} Orang):</div>
+                  {successRegistration.tickets.map((tkt, idx) => (
+                    <div key={tkt.id} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                      <div>
+                        <span className="text-slate-400 font-mono mr-2">#{idx + 1}</span>
+                        <strong className="text-white">{tkt.name}</strong>
+                      </div>
+                      <span className="text-[10px] text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/20 font-mono">
+                        {tkt.ticket_id}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
 
           <div className="pt-2 text-center">
-            <button onClick={onBackToAdmin} className="text-xs text-teal-400 hover:underline block mx-auto">
-              Kembali ke Dashboard Admin
+            <button 
+              onClick={() => {
+                setSuccessRegistration(null);
+                setFormData({ name: '', whatsapp: '', email: '', notes: '' });
+                setCustomAnswers({});
+                setMembers([]);
+              }} 
+              className="w-full py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-lg shadow-lg shadow-teal-600/30 transition"
+            >
+              ➕ Daftarkan Peserta / Keluarga Lainnya
             </button>
           </div>
         </div>
@@ -2844,7 +2869,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Hak Akses (Role)</label>
                 <select value={editUser.role} onChange={e => setEditUser({...editUser, role: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
-                  <option value="CHECKIN_STAFF">Staff Check-In (Scanner QR)</option>
+                  <option value="CHECKIN_STAFF">Staff Check-In (Scanner QR Code)</option>
                   <option value="EVENT_ADMIN">Event Admin (Kelola Acara &amp; Pendaftaran)</option>
                   <option value="SUPER_ADMIN">Super Admin (Akses Penuh)</option>
                 </select>
