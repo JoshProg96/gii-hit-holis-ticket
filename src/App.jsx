@@ -18,23 +18,13 @@ const sendConfirmationEmail = async ({ toEmail, name, tickets, eventName, eventD
   try {
     const res = await fetch('/api/send-email', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        toEmail,
-        name,
-        tickets,
-        eventName,
-        eventDate,
-        eventVenue
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toEmail, name, tickets, eventName, eventDate, eventVenue })
     });
-
     const data = await res.json();
-    console.log('Response dari Vercel Serverless Email Function:', data);
+    console.log('Response Email API:', data);
   } catch (err) {
-    console.error('Gagal memanggil API kirim email:', err);
+    console.error('Gagal kirim email:', err);
   }
 };
 
@@ -52,10 +42,7 @@ function Login({ onLoginSuccess }) {
     setLoading(true);
     setErrorMsg('');
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       setErrorMsg('Email atau password salah. Silakan coba lagi.');
@@ -122,12 +109,13 @@ function Login({ onLoginSuccess }) {
 }
 
 // ==========================================
-// COMPONENT: PUBLIC FORM REGISTRATION (DYNAMIC FORM BUILDER SUPPORT)
+// COMPONENT: PUBLIC FORM REGISTRATION (DUAL QUOTA ENGINE)
 // ==========================================
 function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const [eventData, setEventData] = useState(null);
   const [customFields, setCustomFields] = useState([]);
   const [customAnswers, setCustomAnswers] = useState({});
+  const [optionCounts, setOptionCounts] = useState({}); // Menghitung pendaftar per opsi
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [successRegistration, setSuccessRegistration] = useState(null);
@@ -147,49 +135,52 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const [members, setMembers] = useState([]);
 
   useEffect(() => {
-    const fetchEventAndFields = async () => {
+    const fetchEventAndData = async () => {
       setLoadingEvent(true);
       
-      // 1. Fetch Event
-      const { data: event } = await supabase
-        .from('events')
-        .select('*')
-        .eq('id', eventId)
-        .single();
-
+      // 1. Fetch Event Utama
+      const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
       if (event) {
         setEventData(event);
-        if (!event.allow_family) {
-          setRegType('INDIVIDUAL');
-        }
+        if (!event.allow_family) setRegType('INDIVIDUAL');
       }
 
-      // 2. Fetch Custom Fields dari Dynamic Form Builder
+      // 2. Fetch Pertanyaan Form Builder Dinamis
       const { data: fields } = await supabase
         .from('event_form_fields')
         .select('*')
         .eq('event_id', eventId)
         .order('order_index', { ascending: true });
 
-      if (fields) {
-        setCustomFields(fields);
+      if (fields) setCustomFields(fields);
+
+      // 3. HITUNG JUMLAH JAWABAN TIAP OPSI REAL-TIME DARI DATABASE
+      const { data: answersData } = await supabase
+        .from('registration_answers')
+        .select('answer_value, registration_id, registrations!inner(event_id, registration_members(id))')
+        .eq('registrations.event_id', eventId);
+
+      const counts = {};
+      if (answersData) {
+        answersData.forEach(ans => {
+          const ticketCount = ans.registrations?.registration_members?.length || 1;
+          const val = ans.answer_value;
+          counts[val] = (counts[val] || 0) + ticketCount;
+        });
       }
+      setOptionCounts(counts);
 
       setLoadingEvent(false);
     };
 
-    if (eventId) fetchEventAndFields();
+    if (eventId) fetchEventAndData();
   }, [eventId]);
 
   const handlePhoneChange = (e) => {
     let rawInput = e.target.value;
     let digitsOnly = rawInput.replace(/\D/g, '');
-    
-    if (digitsOnly.startsWith('62')) {
-      digitsOnly = digitsOnly.substring(2);
-    } else if (digitsOnly.startsWith('0')) {
-      digitsOnly = digitsOnly.substring(1);
-    }
+    if (digitsOnly.startsWith('62')) digitsOnly = digitsOnly.substring(2);
+    else if (digitsOnly.startsWith('0')) digitsOnly = digitsOnly.substring(1);
 
     setFormData(prev => ({ ...prev, whatsapp: digitsOnly }));
 
@@ -203,7 +194,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const handleEmailChange = (e) => {
     const val = e.target.value;
     setFormData(prev => ({ ...prev, email: val }));
-
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (val && !emailRegex.test(val)) {
       setEmailError('Format email tidak valid (contoh: nama@domain.com).');
@@ -237,11 +227,37 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
-    // Validasi Custom Fields Wajib
+    const totalRequestedTickets = regType === 'GROUP' ? members.length + 1 : 1;
+
+    // VALIDASI MODE A: KUOTA TUNGGAL ACARA
+    if (eventData.capacity && eventData.capacity > 0) {
+      if ((eventData.registered + totalRequestedTickets) > eventData.capacity) {
+        alert(`⚠️ Pendaftaran Ditolak:\n\nKuota total acara tersisa ${eventData.capacity - eventData.registered} porsi, tidak mencukupi untuk ${totalRequestedTickets} orang.`);
+        return;
+      }
+    }
+
+    // VALIDASI MODE B: BATASAN KUOTA PER OPSI (FORM BUILDER)
     for (const field of customFields) {
       if (field.is_required && !customAnswers[field.id]) {
         alert(`Mohon isi pertanyaan wajib: "${field.label}"`);
         return;
+      }
+
+      if (['radio', 'dropdown'].includes(field.field_type) && customAnswers[field.id]) {
+        const chosenVal = customAnswers[field.id];
+        const fieldOptions = field.options || [];
+        const optionObj = fieldOptions.find(o => (typeof o === 'object' ? o.label === chosenVal : o === chosenVal));
+
+        if (optionObj && typeof optionObj === 'object' && optionObj.quota) {
+          const currentCount = optionCounts[chosenVal] || 0;
+          const maxQuota = parseInt(optionObj.quota);
+
+          if (maxQuota > 0 && (currentCount + totalRequestedTickets) > maxQuota) {
+            alert(`⚠️ Kuota Penuh:\n\nPilihan "${chosenVal}" tersisa ${maxQuota - currentCount} porsi, tidak mencukupi untuk ${totalRequestedTickets} orang.\n\nSilakan pilih opsi yang lain.`);
+            return;
+          }
+        }
       }
     }
 
@@ -249,7 +265,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const fullFormattedPhone = `+62${formData.whatsapp}`;
     const cleanInputName = formData.name.trim();
 
-    // VALIDASI KOMBINASI DUPLIKAT
+    // VALIDASI DUPLIKAT
     const { data: duplicateCheck } = await supabase
       .from('registrations')
       .select('id, name, whatsapp')
@@ -259,7 +275,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       .maybeSingle();
 
     if (duplicateCheck) {
-      alert(`⚠️ Pendaftaran Ditolak:\n\nNama "${cleanInputName}" dengan Nomor WhatsApp (${fullFormattedPhone}) sudah pernah terdaftar pada acara ini.\n\nJika nama peserta beda (misal: anggota keluarga), silakan ubah nama peserta.`);
+      alert(`⚠️ Pendaftaran Ditolak:\n\nNama "${cleanInputName}" dengan Nomor WhatsApp (${fullFormattedPhone}) sudah pernah terdaftar pada acara ini.`);
       setSubmitting(false);
       return;
     }
@@ -281,7 +297,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
-    // SIMPAN JAWABAN CUSTOM FIELDS KE DATABASE
+    // SIMPAN JAWABAN CUSTOM FIELDS
     const answerPayloads = Object.keys(customAnswers).map(fieldId => ({
       registration_id: regId,
       field_id: fieldId,
@@ -327,7 +343,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const newRegisteredCount = (eventData.registered || 0) + memberPayloads.length;
     await supabase.from('events').update({ registered: newRegisteredCount }).eq('id', eventId);
 
-    // TRIGGER AUTO EMAIL BILA EMAIL DIISI
+    // KIRIM EMAIL BILA DIISI
     if (formData.email) {
       sendConfirmationEmail({
         toEmail: formData.email,
@@ -367,6 +383,9 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       </div>
     );
   }
+
+  // JIKA TUNGGAL ACARA DAH PENUH TOTAL
+  const isMainEventFull = eventData.capacity && eventData.capacity > 0 && eventData.registered >= eventData.capacity;
 
   if (successRegistration) {
     return (
@@ -449,229 +468,277 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           </p>
         </div>
 
-        {eventData.allow_family && (
-          <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-xl border border-slate-700 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => {
-                setRegType('INDIVIDUAL');
-                setMembers([]);
-              }}
-              className={`py-2.5 rounded-lg transition-all ${regType === 'INDIVIDUAL' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-            >
-              👤 Pendaftaran Individu (1 Orang)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRegType('GROUP');
-                if (members.length === 0) setMembers([{ name: '', category: 'Dewasa' }]);
-              }}
-              className={`py-2.5 rounded-lg transition-all ${regType === 'GROUP' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-            >
-              👨‍👩‍👧‍👦 Pendaftaran Keluarga / Rombongan
-            </button>
+        {isMainEventFull ? (
+          <div className="bg-rose-500/10 border border-rose-500/50 p-6 rounded-xl text-center space-y-2">
+            <AlertTriangle size={36} className="text-rose-400 mx-auto" />
+            <h3 className="font-bold text-base text-rose-400">Pendaftaran Ditutup (Sold Out)</h3>
+            <p className="text-xs text-slate-300">Kuota pendaftaran untuk acara ini sudah memenuhi batas maksimum ({eventData.capacity} porsi).</p>
           </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5 text-xs">
-          
-          <div className="space-y-3">
-            <h4 className="font-bold text-teal-400 text-xs">
-              {regType === 'INDIVIDUAL' ? 'Informasi Data Peserta' : '1. Informasi Kontak Utama'}
-            </h4>
-            
-            <div>
-              <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap *</label>
-              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Joshua Merian Limas" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-300 mb-1 font-semibold">No. WhatsApp *</label>
-                <div className="relative flex items-center">
-                  <span className="absolute left-3 font-bold text-teal-400 text-xs select-none">+62</span>
-                  <input
-                    required
-                    type="text"
-                    inputMode="numeric"
-                    value={formData.whatsapp}
-                    onChange={handlePhoneChange}
-                    placeholder="8123456789"
-                    className="w-full pl-12 pr-3 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono focus:border-teal-500"
-                  />
-                </div>
-                {phoneError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{phoneError}</p>}
-              </div>
-
-              <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Email (Untuk Terima E-Tiket Otomatis)</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={handleEmailChange}
-                  placeholder="nama@email.com"
-                  className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
-                />
-                {emailError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{emailError}</p>}
-              </div>
-            </div>
-
-            {regType === 'INDIVIDUAL' && (
-              <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Kategori Usia</label>
-                <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500">
-                  <option value="Dewasa">Dewasa</option>
-                  <option value="Pemuda / Remaja">Pemuda / Remaja</option>
-                  <option value="Lansia">Lansia</option>
-                </select>
-              </div>
-            )}
-          </div>
-
-          {/* RENDER PERTANYAAN DINAMIS DARI FORM BUILDER (ALA GOOGLE FORM) */}
-          {customFields.length > 0 && (
-            <div className="space-y-4 pt-3 border-t border-slate-700">
-              <h4 className="font-bold text-teal-400 text-xs uppercase tracking-wide">
-                Informasi Tambahan Acara
-              </h4>
-
-              {customFields.map(field => (
-                <div key={field.id} className="bg-slate-950/70 p-4 rounded-xl border border-slate-700 space-y-2">
-                  <label className="block text-slate-200 font-semibold text-xs">
-                    {field.label} {field.is_required && <span className="text-rose-400">*</span>}
-                  </label>
-
-                  {field.placeholder && (
-                    <p className="text-[11px] text-slate-400 leading-normal">{field.placeholder}</p>
-                  )}
-
-                  {/* TIPE TEKS SINGKAT */}
-                  {field.field_type === 'text' && (
-                    <input 
-                      type="text"
-                      required={field.is_required}
-                      value={customAnswers[field.id] || ''}
-                      onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
-                      placeholder="Ketik jawaban Anda..."
-                      className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
-                    />
-                  )}
-
-                  {/* TIPE TANGGAL */}
-                  {field.field_type === 'date' && (
-                    <input 
-                      type="date"
-                      required={field.is_required}
-                      value={customAnswers[field.id] || ''}
-                      onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
-                      className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
-                    />
-                  )}
-
-                  {/* TIPE PARAGRAF / TEXTAREA */}
-                  {field.field_type === 'textarea' && (
-                    <textarea 
-                      rows={3}
-                      required={field.is_required}
-                      value={customAnswers[field.id] || ''}
-                      onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
-                      placeholder="Ketik jawaban penjelasan..."
-                      className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
-                    ></textarea>
-                  )}
-
-                  {/* TIPE PILIHAN GANDA / RADIO */}
-                  {field.field_type === 'radio' && (
-                    <div className="space-y-2 pt-1">
-                      {(field.options || []).map((opt, oIdx) => (
-                        <label key={oIdx} className="flex items-center gap-3 p-2.5 bg-slate-900 border border-slate-700 rounded-lg cursor-pointer hover:border-teal-500 transition">
-                          <input 
-                            type="radio"
-                            name={`field_${field.id}`}
-                            value={opt}
-                            checked={customAnswers[field.id] === opt}
-                            onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
-                            className="w-4 h-4 text-teal-500 focus:ring-teal-500"
-                          />
-                          <span className="text-slate-200 text-xs font-medium">{opt}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* TIPE DROPDOWN */}
-                  {field.field_type === 'dropdown' && (
-                    <select
-                      required={field.is_required}
-                      value={customAnswers[field.id] || ''}
-                      onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
-                      className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
-                    >
-                      <option value="">-- Pilih Salah Satu --</option>
-                      {(field.options || []).map((opt, oIdx) => (
-                        <option key={oIdx} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {regType === 'GROUP' && (
-            <div className="space-y-3 pt-3 border-t border-slate-700">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h4 className="font-bold text-teal-400 text-xs">2. Anggota Tambahan yang Diikutkan</h4>
-                  <p className="text-[10px] text-slate-400">Pendaftar Utama otomatis terhitung mendapat 1 Tiket.</p>
-                </div>
-                <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
-                  <Plus size={14} /> Tambah Anggota
+        ) : (
+          <>
+            {eventData.allow_family && (
+              <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-xl border border-slate-700 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegType('INDIVIDUAL');
+                    setMembers([]);
+                  }}
+                  className={`py-2.5 rounded-lg transition-all ${regType === 'INDIVIDUAL' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                  👤 Pendaftaran Individu (1 Orang)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegType('GROUP');
+                    if (members.length === 0) setMembers([{ name: '', category: 'Dewasa' }]);
+                  }}
+                  className={`py-2.5 rounded-lg transition-all ${regType === 'GROUP' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                  👨‍👩‍👧‍👦 Pendaftaran Keluarga / Rombongan
                 </button>
               </div>
+            )}
 
-              {members.length === 0 ? (
-                <div className="p-3 bg-slate-900/50 rounded-lg border border-dashed border-slate-700 text-slate-400 text-[11px] text-center">
-                  Belum ada anggota tambahan. Klik "+ Tambah Anggota" di atas jika membawa keluarga/teman.
+            <form onSubmit={handleSubmit} className="space-y-5 text-xs">
+              
+              <div className="space-y-3">
+                <h4 className="font-bold text-teal-400 text-xs">
+                  {regType === 'INDIVIDUAL' ? 'Informasi Data Peserta' : '1. Informasi Kontak Utama'}
+                </h4>
+                
+                <div>
+                  <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap *</label>
+                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Joshua Merian Limas" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
                 </div>
-              ) : (
-                members.map((member, idx) => (
-                  <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-teal-400 text-[10px] shrink-0">
-                      +{idx + 1}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 mb-1 font-semibold">No. WhatsApp *</label>
+                    <div className="relative flex items-center">
+                      <span className="absolute left-3 font-bold text-teal-400 text-xs select-none">+62</span>
+                      <input
+                        required
+                        type="text"
+                        inputMode="numeric"
+                        value={formData.whatsapp}
+                        onChange={handlePhoneChange}
+                        placeholder="8123456789"
+                        className="w-full pl-12 pr-3 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono focus:border-teal-500"
+                      />
                     </div>
-                    <input required type="text" value={member.name} onChange={e => {
-                      const updated = [...members];
-                      updated[idx].name = e.target.value;
-                      setMembers(updated);
-                    }} placeholder={`Nama Anggota Tambahan ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
-                    
-                    <select value={member.category} onChange={e => {
-                      const updated = [...members];
-                      updated[idx].category = e.target.value;
-                      setMembers(updated);
-                    }} className="p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+                    {phoneError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{phoneError}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 mb-1 font-semibold">Email (Untuk Terima E-Tiket Otomatis)</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={handleEmailChange}
+                      placeholder="nama@email.com"
+                      className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                    />
+                    {emailError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{emailError}</p>}
+                  </div>
+                </div>
+
+                {regType === 'INDIVIDUAL' && (
+                  <div>
+                    <label className="block text-slate-300 mb-1 font-semibold">Kategori Usia</label>
+                    <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500">
                       <option value="Dewasa">Dewasa</option>
                       <option value="Pemuda / Remaja">Pemuda / Remaja</option>
                       <option value="Lansia">Lansia</option>
                     </select>
+                  </div>
+                )}
+              </div>
 
-                    <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
-                      ✕
+              {/* RENDER FORM BUILDER (SUPPORT MODE B: SUB-QUOTA PER OPSI) */}
+              {customFields.length > 0 && (
+                <div className="space-y-4 pt-3 border-t border-slate-700">
+                  <h4 className="font-bold text-teal-400 text-xs uppercase tracking-wide">
+                    Informasi Pilihan Acara
+                  </h4>
+
+                  {customFields.map(field => (
+                    <div key={field.id} className="bg-slate-950/70 p-4 rounded-xl border border-slate-700 space-y-2">
+                      <label className="block text-slate-200 font-semibold text-xs">
+                        {field.label} {field.is_required && <span className="text-rose-400">*</span>}
+                      </label>
+
+                      {field.placeholder && (
+                        <p className="text-[11px] text-slate-400 leading-normal">{field.placeholder}</p>
+                      )}
+
+                      {/* TIPE TEKS SINGKAT */}
+                      {field.field_type === 'text' && (
+                        <input 
+                          type="text"
+                          required={field.is_required}
+                          value={customAnswers[field.id] || ''}
+                          onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                          placeholder="Ketik jawaban Anda..."
+                          className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                        />
+                      )}
+
+                      {/* TIPE TANGGAL */}
+                      {field.field_type === 'date' && (
+                        <input 
+                          type="date"
+                          required={field.is_required}
+                          value={customAnswers[field.id] || ''}
+                          onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                          className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                        />
+                      )}
+
+                      {/* TIPE PARAGRAF / TEXTAREA */}
+                      {field.field_type === 'textarea' && (
+                        <textarea 
+                          rows={3}
+                          required={field.is_required}
+                          value={customAnswers[field.id] || ''}
+                          onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                          placeholder="Ketik penjelasan..."
+                          className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                        ></textarea>
+                      )}
+
+                      {/* TIPE PILIHAN GANDA (RADIO) DENGAN PENGECEKAN KUOTA SUB-SESI */}
+                      {field.field_type === 'radio' && (
+                        <div className="space-y-2 pt-1">
+                          {(field.options || []).map((optItem, oIdx) => {
+                            const labelStr = typeof optItem === 'object' ? optItem.label : optItem;
+                            const maxQ = typeof optItem === 'object' ? parseInt(optItem.quota || 0) : 0;
+                            const countNow = optionCounts[labelStr] || 0;
+                            const isOptFull = maxQ > 0 && countNow >= maxQ;
+
+                            return (
+                              <label 
+                                key={oIdx} 
+                                className={`flex items-center justify-between p-3 rounded-lg border transition ${
+                                  isOptFull 
+                                    ? 'bg-slate-900/40 border-slate-800 opacity-50 cursor-not-allowed' 
+                                    : customAnswers[field.id] === labelStr
+                                      ? 'bg-slate-900 border-teal-500 shadow-sm'
+                                      : 'bg-slate-900 border-slate-700 cursor-pointer hover:border-slate-500'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <input 
+                                    type="radio"
+                                    disabled={isOptFull}
+                                    name={`field_${field.id}`}
+                                    value={labelStr}
+                                    checked={customAnswers[field.id] === labelStr}
+                                    onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                                    className="w-4 h-4 text-teal-500 focus:ring-teal-500"
+                                  />
+                                  <span className={`text-xs font-semibold ${isOptFull ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+                                    {labelStr}
+                                  </span>
+                                </div>
+
+                                {maxQ > 0 && (
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                    isOptFull ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-teal-400'
+                                  }`}>
+                                    {isOptFull ? `❌ Penuh (${maxQ}/${maxQ})` : `Sisa ${maxQ - countNow} Porsi`}
+                                  </span>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* TIPE DROPDOWN DENGAN PENGECEKAN KUOTA */}
+                      {field.field_type === 'dropdown' && (
+                        <select
+                          required={field.is_required}
+                          value={customAnswers[field.id] || ''}
+                          onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                          className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                        >
+                          <option value="">-- Pilih Salah Satu --</option>
+                          {(field.options || []).map((optItem, oIdx) => {
+                            const labelStr = typeof optItem === 'object' ? optItem.label : optItem;
+                            const maxQ = typeof optItem === 'object' ? parseInt(optItem.quota || 0) : 0;
+                            const countNow = optionCounts[labelStr] || 0;
+                            const isOptFull = maxQ > 0 && countNow >= maxQ;
+
+                            return (
+                              <option key={oIdx} value={labelStr} disabled={isOptFull}>
+                                {labelStr} {maxQ > 0 ? (isOptFull ? '❌ (Penuh)' : `(Sisa ${maxQ - countNow})`) : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {regType === 'GROUP' && (
+                <div className="space-y-3 pt-3 border-t border-slate-700">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-bold text-teal-400 text-xs">2. Anggota Tambahan yang Diikutkan</h4>
+                      <p className="text-[10px] text-slate-400">Pendaftar Utama otomatis terhitung mendapat 1 Tiket.</p>
+                    </div>
+                    <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
+                      <Plus size={14} /> Tambah Anggota
                     </button>
                   </div>
-                ))
-              )}
-            </div>
-          )}
 
-          <div className="pt-2">
-            <button type="submit" disabled={submitting || !!phoneError || !!emailError} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
-              {submitting ? 'Proses Dapatkan E-Tiket...' : 'Konfirmasi & Terbitkan Tiket QR'}
-            </button>
-          </div>
-        </form>
+                  {members.length === 0 ? (
+                    <div className="p-3 bg-slate-900/50 rounded-lg border border-dashed border-slate-700 text-slate-400 text-[11px] text-center">
+                      Belum ada anggota tambahan. Klik "+ Tambah Anggota" di atas jika membawa keluarga/teman.
+                    </div>
+                  ) : (
+                    members.map((member, idx) => (
+                      <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-teal-400 text-[10px] shrink-0">
+                          +{idx + 1}
+                        </div>
+                        <input required type="text" value={member.name} onChange={e => {
+                          const updated = [...members];
+                          updated[idx].name = e.target.value;
+                          setMembers(updated);
+                        }} placeholder={`Nama Anggota Tambahan ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                        
+                        <select value={member.category} onChange={e => {
+                          const updated = [...members];
+                          updated[idx].category = e.target.value;
+                          setMembers(updated);
+                        }} className="p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+                          <option value="Dewasa">Dewasa</option>
+                          <option value="Pemuda / Remaja">Pemuda / Remaja</option>
+                          <option value="Lansia">Lansia</option>
+                        </select>
+
+                        <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
+                          ✕
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              <div className="pt-2">
+                <button type="submit" disabled={submitting || !!phoneError || !!emailError} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
+                  {submitting ? 'Proses Dapatkan E-Tiket...' : 'Konfirmasi & Terbitkan Tiket QR'}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1158,7 +1225,7 @@ function MetricCard({ title, value, icon, subtext, bg }) {
 }
 
 // ==========================================
-// MODULE 2: EVENT MANAGEMENT & DYNAMIC FORM BUILDER (ALA GOOGLE FORM)
+// MODULE 2: EVENT MANAGEMENT & FORM BUILDER WITH OPTION QUOTAS
 // ==========================================
 function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPublicEventId }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1299,11 +1366,8 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
     }
 
     setSaving(true);
-
     await supabase.from('registrations').delete().eq('event_id', eventId);
-
     const { error } = await supabase.from('events').delete().eq('id', eventId);
-
     setSaving(false);
 
     if (error) {
@@ -1315,7 +1379,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
   };
 
   // ==========================================
-  // DYNAMIC FORM BUILDER HANDLERS (EDITOR ALA GOOGLE FORM)
+  // DYNAMIC FORM BUILDER HANDLERS (SUPPORT OPTION QUOTA)
   // ==========================================
   const handleOpenFormBuilder = async (evt) => {
     setSelectedEventForBuilder(evt);
@@ -1332,7 +1396,24 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       console.error("Gagal ambil form fields:", error);
       setFormFields([]);
     } else {
-      setFormFields(data || []);
+      // Normalisasi Opsi ke Struktur Objek { label, quota }
+      const normalizedData = (data || []).map(field => {
+        let parsedOpts = field.options || [];
+        if (typeof parsedOpts === 'string') {
+          try { parsedOpts = JSON.parse(parsedOpts); } catch (e) { parsedOpts = []; }
+        }
+        
+        const formattedOpts = parsedOpts.map(opt => {
+          if (typeof opt === 'object' && opt !== null) {
+            return { label: opt.label || '', quota: opt.quota || '' };
+          }
+          return { label: String(opt), quota: '' };
+        });
+
+        return { ...field, options: formattedOpts };
+      });
+
+      setFormFields(normalizedData);
     }
     setLoadingFields(false);
   };
@@ -1343,7 +1424,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       event_id: selectedEventForBuilder.id,
       label: 'Pertanyaan Tanpa Judul',
       field_type: 'text',
-      options: ['Opsi 1', 'Opsi 2'],
+      options: [{ label: 'Opsi 1', quota: '' }, { label: 'Opsi 2', quota: '' }],
       placeholder: '',
       is_required: false,
       order_index: formFields.length + 1,
@@ -1361,13 +1442,25 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
   const handleAddOptionLocal = (fieldIndex) => {
     const updated = [...formFields];
     const currentOpts = updated[fieldIndex].options || [];
-    updated[fieldIndex].options = [...currentOpts, `Opsi ${currentOpts.length + 1}`];
+    updated[fieldIndex].options = [...currentOpts, { label: `Opsi ${currentOpts.length + 1}`, quota: '' }];
     setFormFields(updated);
   };
 
   const handleRemoveOptionLocal = (fieldIndex, optIndex) => {
     const updated = [...formFields];
     updated[fieldIndex].options = updated[fieldIndex].options.filter((_, i) => i !== optIndex);
+    setFormFields(updated);
+  };
+
+  const handleUpdateOptionLabelLocal = (fieldIndex, optIndex, val) => {
+    const updated = [...formFields];
+    updated[fieldIndex].options[optIndex].label = val;
+    setFormFields(updated);
+  };
+
+  const handleUpdateOptionQuotaLocal = (fieldIndex, optIndex, val) => {
+    const updated = [...formFields];
+    updated[fieldIndex].options[optIndex].quota = val;
     setFormFields(updated);
   };
 
@@ -1385,7 +1478,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
   const handleSaveFormFields = async () => {
     setSaving(true);
 
-    // Filter & payload
     for (let i = 0; i < formFields.length; i++) {
       const f = formFields[i];
       const payload = {
@@ -1415,7 +1507,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-bold text-slate-900">Daftar Acara</h3>
-          <p className="text-xs text-slate-500">Kelola formulir pendaftaran dan kapasitas tempat duduk real-time</p>
+          <p className="text-xs text-slate-500">Kelola formulir pendaftaran dan kuota fleksibel real-time</p>
         </div>
         <div className="flex gap-2">
           <button onClick={fetchRealEvents} className="p-2 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-700 text-xs font-semibold flex items-center gap-1" title="Refresh Data">
@@ -1498,7 +1590,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                       <button 
                         onClick={() => handleOpenFormBuilder(evt)} 
                         className="p-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-indigo-200"
-                        title="Desain Pertanyaan Form ala Google Form"
+                        title="Desain Pertanyaan Form & Batas Kuota Sesi"
                       >
                         <ListPlus size={14} /> Form Builder
                       </button>
@@ -1540,23 +1632,21 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
         </div>
       )}
 
-      {/* MODAL EDITOR ALA GOOGLE FORM (DYNAMIC FORM BUILDER) */}
+      {/* MODAL FORM BUILDER DENGAN SETTING KUOTA OPTION (MODE B) */}
       {showFormBuilderModal && selectedEventForBuilder && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 my-8 flex flex-col max-h-[90vh]">
             
-            {/* EDITOR HEADER */}
             <div className="px-6 py-4 bg-indigo-900 text-white flex justify-between items-center shrink-0">
               <div>
                 <span className="text-[10px] bg-indigo-700 text-indigo-100 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Editor Formulir Dinamis
+                  Editor Formulir & Pembagian Kuota Sesi
                 </span>
                 <h3 className="font-bold text-sm text-white mt-1">Form Builder: {selectedEventForBuilder.name}</h3>
               </div>
               <button onClick={() => setShowFormBuilderModal(false)} className="text-slate-300 hover:text-white p-1">✕</button>
             </div>
 
-            {/* EDITOR BODY (QUESTION LIST) */}
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
               {loadingFields ? (
                 <div className="text-center py-8 text-xs text-slate-500">
@@ -1566,9 +1656,10 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
               ) : (
                 <>
                   <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-xs space-y-1">
-                    <div className="font-bold text-slate-800">📌 Pertanyaan Utama Bawaan (Default)</div>
-                    <p className="text-slate-500">
-                      <strong>Nama Lengkap</strong>, <strong>No. WhatsApp</strong>, dan <strong>Email</strong> otomatis selalu ada di paling atas sebagai syarat tiket QR. Tambahkan pertanyaan kustom di bawah ini:
+                    <div className="font-bold text-slate-800">📌 Panduan Pengisian Kuota Opsi:</div>
+                    <p className="text-slate-500 leading-relaxed">
+                      • <strong>Mode A (Kuota Tunggal):</strong> Kosongkan kolom kuota opsi. Acara akan dibatasi oleh Kuota Utamanya.<br/>
+                      • <strong>Mode B (Multi-Sesi / Sub-Kuota):</strong> Isi angka pada kolom <em>Quota Limit</em> di samping tiap opsi (contoh: 600 untuk Kebaktian 1, 700 untuk Kebaktian 2).
                     </p>
                   </div>
 
@@ -1602,7 +1693,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                           </select>
                         </div>
 
-                        {/* INPUT SUBTEXT / PLACEHOLDER */}
                         <div>
                           <input 
                             type="text"
@@ -1613,25 +1703,35 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                           />
                         </div>
 
-                        {/* EDIT DAFTAR OPSI (JIKA RADIO ATAU DROPDOWN) */}
+                        {/* EDIT OPSI + LIMIT ANGKA KUOTA OPSI */}
                         {['radio', 'dropdown'].includes(field.field_type) && (
                           <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase">Daftar Pilihan Opsi Jawaban:</label>
+                            <label className="block text-[11px] font-bold text-slate-600 uppercase">
+                              Daftar Pilihan Opsi & Batas Kuota Per Opsi (Mode B):
+                            </label>
                             
                             {(field.options || []).map((opt, oIdx) => (
                               <div key={oIdx} className="flex items-center gap-2">
                                 <span className="text-slate-400 text-xs">⚪</span>
                                 <input 
                                   type="text" 
-                                  value={opt}
-                                  onChange={e => {
-                                    const updatedOpts = [...field.options];
-                                    updatedOpts[oIdx] = e.target.value;
-                                    handleUpdateFieldLocal(idx, 'options', updatedOpts);
-                                  }}
-                                  placeholder={`Opsi ${oIdx + 1}`}
+                                  value={opt.label}
+                                  onChange={e => handleUpdateOptionLabelLocal(idx, oIdx, e.target.value)}
+                                  placeholder={`Nama Opsi (Contoh: Kebaktian ${oIdx + 1})`}
                                   className="flex-1 p-2 border border-slate-300 rounded bg-white text-xs font-medium"
                                 />
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <span className="text-[10px] font-bold text-slate-500">Quota:</span>
+                                  <input 
+                                    type="number" 
+                                    value={opt.quota || ''}
+                                    onChange={e => handleUpdateOptionQuotaLocal(idx, oIdx, e.target.value)}
+                                    placeholder="∞ Unlimited"
+                                    className="w-24 p-2 border border-slate-300 rounded bg-white text-xs font-mono font-bold text-indigo-700"
+                                  />
+                                </div>
+
                                 {(field.options || []).length > 1 && (
                                   <button 
                                     type="button" 
@@ -1654,7 +1754,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                           </div>
                         )}
 
-                        {/* BOTTOM ACTIONS (REQUIRED & DELETE) */}
                         <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input 
@@ -1689,7 +1788,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
               )}
             </div>
 
-            {/* EDITOR FOOTER */}
             <div className="px-6 py-4 bg-white border-t border-slate-200 flex justify-end gap-2 shrink-0">
               <button 
                 type="button" 
@@ -1754,7 +1852,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                     disabled={isUnlimited}
                     value={isUnlimited ? '' : newEvent.capacity} 
                     onChange={e => setNewEvent({...newEvent, capacity: e.target.value})} 
-                    placeholder={isUnlimited ? "Kapasitas Tidak Terbatas" : "200"}
+                    placeholder={isUnlimited ? "Kapasitas Tidak Terbatas" : "1300"}
                     className="w-full p-2.5 border rounded-lg border-slate-300 disabled:bg-slate-100 disabled:text-slate-400" 
                   />
                 </div>
@@ -1840,7 +1938,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                     disabled={isEditUnlimited}
                     value={isEditUnlimited ? '' : editEventData.capacity} 
                     onChange={e => setEditEventData({...editEventData, capacity: e.target.value})} 
-                    placeholder={isEditUnlimited ? "Kapasitas Tidak Terbatas" : "200"}
+                    placeholder={isEditUnlimited ? "Kapasitas Tidak Terbatas" : "1300"}
                     className="w-full p-2.5 border rounded-lg border-slate-300 disabled:bg-slate-100 disabled:text-slate-400" 
                   />
                 </div>
@@ -2053,7 +2151,6 @@ function CheckInModule({ showToast }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* KAMERA SCANNER */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
           <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Kamera Pemindai</h4>
           
@@ -2084,7 +2181,6 @@ function CheckInModule({ showToast }) {
           </form>
         </div>
 
-        {/* HASIL VERIFIKASI */}
         <div className="space-y-4">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[280px] flex flex-col justify-center">
             <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider mb-3">Hasil Pemindaian Terbaru</h4>
@@ -2139,7 +2235,6 @@ function CheckInModule({ showToast }) {
             )}
           </div>
 
-          {/* RIWAYAT SCAN */}
           {recentCheckIns.length > 0 && (
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
               <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Riwayat Scan Sesi Ini</h5>
@@ -2316,7 +2411,6 @@ function RegistrationsModule({ events, showToast }) {
                     📱 {reg.whatsapp} {reg.email && `| ✉️ ${reg.email}`}
                   </p>
                   
-                  {/* DISPLAY DYNAMIC ANSWERS FROM FORM BUILDER */}
                   {reg.registration_answers && reg.registration_answers.length > 0 && (
                     <div className="mt-2 space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
                       <div className="text-[10px] font-bold text-indigo-700 uppercase">Jawaban Form Kustom:</div>
@@ -2368,7 +2462,7 @@ function RegistrationsModule({ events, showToast }) {
                             disabled={processingId === mem.id}
                             onClick={() => handleManualCheckIn(mem, reg.event_id)}
                             className="w-full py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-md shadow-sm transition flex items-center justify-center gap-1 disabled:opacity-50"
-                        >
+                          >
                             {processingId === mem.id ? 'Memproses...' : '✓ Set Hadir Manual'}
                           </button>
                         )}
@@ -2479,28 +2573,12 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
   
-  const [newUser, setNewUser] = useState({ 
-    email: '', 
-    name: '', 
-    role: 'CHECKIN_STAFF', 
-    password: '' 
-  });
-
-  const [editUser, setEditUser] = useState({
-    id: '',
-    name: '',
-    email: '',
-    role: 'CHECKIN_STAFF',
-    status: 'Aktif'
-  });
+  const [newUser, setNewUser] = useState({ email: '', name: '', role: 'CHECKIN_STAFF', password: '' });
+  const [editUser, setEditUser] = useState({ id: '', name: '', email: '', role: 'CHECKIN_STAFF', status: 'Aktif' });
 
   const fetchUsers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-
+    const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
     if (error) {
       console.error('Gagal memuat profil pengguna:', error);
       if (showToast) showToast('Gagal memuat data pengguna', 'error');
@@ -2522,13 +2600,10 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
     }
 
     setSaving(true);
-
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: newUser.email,
       password: newUser.password,
-      options: {
-        data: { role: newUser.role, name: newUser.name }
-      }
+      options: { data: { role: newUser.role, name: newUser.name } }
     });
 
     if (authError) {
@@ -2538,7 +2613,6 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
     }
 
     const userId = authData.user?.id || `USR-${Date.now()}`;
-
     const { error: profileError } = await supabase.from('profiles').insert([{
       id: userId,
       name: newUser.name,
@@ -2560,29 +2634,14 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
   };
 
   const handleOpenEdit = (user) => {
-    setEditUser({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      status: user.status || 'Aktif'
-    });
+    setEditUser({ id: user.id, name: user.name, email: user.email, role: user.role, status: user.status || 'Aktif' });
     setShowEditModal(true);
   };
 
   const handleUpdateUser = async (e) => {
     e.preventDefault();
     setSaving(true);
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        name: editUser.name,
-        role: editUser.role,
-        status: editUser.status
-      })
-      .eq('id', editUser.id);
-
+    const { error } = await supabase.from('profiles').update({ name: editUser.name, role: editUser.role, status: editUser.status }).eq('id', editUser.id);
     setSaving(false);
 
     if (error) {
@@ -2596,9 +2655,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
 
   const handleDeleteUser = async (id, name) => {
     if (!window.confirm(`Apakah Anda yakin ingin menghapus akses untuk ${name}?`)) return;
-
     const { error } = await supabase.from('profiles').delete().eq('id', id);
-    
     if (error) {
       showToast(`Gagal menghapus user: ${error.message}`, 'error');
     } else {
@@ -2614,10 +2671,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
           <h3 className="font-bold text-base text-slate-900">Manajemen Pengguna & Hak Akses</h3>
           <p className="text-xs text-slate-500">Kelola akun administrator, event admin, dan staff check-in database Supabase</p>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)} 
-          className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow"
-        >
+        <button onClick={() => setShowAddModal(true)} className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow">
           <UserPlus size={16} /> Tambah Pengguna Baru
         </button>
       </div>
@@ -2666,18 +2720,8 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
                       </span>
                     </td>
                     <td className="p-3 text-right space-x-2">
-                      <button 
-                        onClick={() => handleOpenEdit(u)} 
-                        className="text-teal-600 hover:underline font-semibold"
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteUser(u.id, u.name)} 
-                        className="text-rose-600 hover:underline font-semibold"
-                      >
-                        Hapus
-                      </button>
+                      <button onClick={() => handleOpenEdit(u)} className="text-teal-600 hover:underline font-semibold">Edit</button>
+                      <button onClick={() => handleDeleteUser(u.id, u.name)} className="text-rose-600 hover:underline font-semibold">Hapus</button>
                     </td>
                   </tr>
                 ))}
@@ -2699,17 +2743,14 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
                 <label className="block font-semibold mb-1 text-slate-700">Nama Lengkap *</label>
                 <input required type="text" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} placeholder="Contoh: Budi Santoso" className="w-full p-2.5 border rounded-lg border-slate-300" />
               </div>
-
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Email Login *</label>
                 <input required type="email" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="budi@giiholis.org" className="w-full p-2.5 border rounded-lg border-slate-300" />
               </div>
-
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Password Login *</label>
                 <input required type="password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="••••••••" className="w-full p-2.5 border rounded-lg border-slate-300" />
               </div>
-
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Hak Akses (Role)</label>
                 <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
@@ -2718,7 +2759,6 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
                   <option value="SUPER_ADMIN">Super Admin (Akses Penuh)</option>
                 </select>
               </div>
-
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-slate-600">Batal</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">
@@ -2742,12 +2782,10 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
                 <label className="block font-semibold mb-1 text-slate-700">Nama Lengkap *</label>
                 <input required type="text" value={editUser.name} onChange={e => setEditUser({...editUser, name: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
               </div>
-
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Email Login (Read-only)</label>
                 <input disabled type="email" value={editUser.email} className="w-full p-2.5 border rounded-lg border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed" />
               </div>
-
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Hak Akses (Role)</label>
                 <select value={editUser.role} onChange={e => setEditUser({...editUser, role: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
@@ -2756,7 +2794,6 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
                   <option value="SUPER_ADMIN">Super Admin (Akses Penuh)</option>
                 </select>
               </div>
-
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Status Akun</label>
                 <select value={editUser.status} onChange={e => setEditUser({...editUser, status: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
@@ -2764,7 +2801,6 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
                   <option value="Non-Aktif">Non-Aktif</option>
                 </select>
               </div>
-
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 border rounded-lg text-slate-600">Batal</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">
