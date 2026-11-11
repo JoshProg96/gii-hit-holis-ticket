@@ -413,7 +413,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               <div>📍 <strong>Lokasi:</strong> {successRegistration.event.venue}</div>
             </div>
 
-            {/* TAMPILKAN E-TIKET QR HANYA JIKA FITUR QR DIAKTIFKAN */}
             {isQrEnabled ? (
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider text-center">Daftar E-Tiket &amp; Kode QR</h4>
@@ -542,7 +541,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                     {phoneError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{phoneError}</p>}
                   </div>
 
-                  {/* KOLOM EMAIL TAMPIL HANYA JIKA REQUIRE EMAIL = ON */}
                   {isEmailEnabled && (
                     <div>
                       <label className="block text-slate-300 mb-1 font-semibold">Email (Untuk Terima Tiket Otomatis) *</label>
@@ -571,7 +569,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                 )}
               </div>
 
-              {/* RENDER PERTANYAAN FORM BUILDER */}
               {customFields.length > 0 && (
                 <div className="space-y-4 pt-3 border-t border-slate-700">
                   <h4 className="font-bold text-teal-400 text-xs uppercase tracking-wide">
@@ -1592,25 +1589,26 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div>📅 <strong>Tanggal:</strong> {evt.date}</div>
-                    <div>⏰ <strong>Waktu:</strong> {evt.time}</div>
-                    <div className="sm:col-span-2">📍 <strong>Lokasi:</strong> {evt.venue}</div>
-                    <div>👨‍👩‍👧‍👦 <strong>Tipe:</strong> {isFamilyOn ? 'Rombongan' : 'Individu'}</div>
-                    <div>
-                      <strong>Fitur:</strong>{' '}
-                      {isQrOn && isEmailOn ? (
-                        <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px] border border-emerald-300">
-                          🎟️ E-Tiket QR + Email
-                        </span>
-                      ) : isQrOn ? (
-                        <span className="bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded text-[10px] border border-teal-300">
-                          🎟️ E-Tiket QR Code Only
-                        </span>
-                      ) : (
-                        <span className="bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded text-[10px]">
-                          📝 Tanpa QR Code
-                        </span>
-                      )}
+                      <div>📅 <strong>Tanggal:</strong> {evt.date}</div>
+                      <div>⏰ <strong>Waktu:</strong> {evt.time}</div>
+                      <div className="sm:col-span-2">📍 <strong>Lokasi:</strong> {evt.venue}</div>
+                      <div>👨‍👩‍👧‍👦 <strong>Tipe:</strong> {isFamilyOn ? 'Rombongan' : 'Individu'}</div>
+                      <div>
+                        <strong>Fitur:</strong>{' '}
+                        {isQrOn && isEmailOn ? (
+                          <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px] border border-emerald-300">
+                            🎟️ E-Tiket QR + Email
+                          </span>
+                        ) : isQrOn ? (
+                          <span className="bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded text-[10px] border border-teal-300">
+                            🎟️ E-Tiket QR Code Only
+                          </span>
+                        ) : (
+                          <span className="bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded text-[10px]">
+                            📝 Tanpa QR Code
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
