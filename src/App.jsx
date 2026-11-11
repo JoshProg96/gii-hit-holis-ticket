@@ -4,7 +4,8 @@ import {
   Gift, Heart, Send, BarChart3, Shield, Settings, Plus, Search, 
   Download, Upload, CheckCircle, Copy, UserPlus, 
   FileText, Sparkles, Camera, ArrowRight, Lock, Check,
-  Share2, AlertTriangle, LogOut, Menu, X, RefreshCw, Ticket, ChevronRight
+  Share2, AlertTriangle, LogOut, Menu, X, RefreshCw, Ticket, ChevronRight,
+  Edit, Trash2, RotateCcw
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -1081,15 +1082,21 @@ function MetricCard({ title, value, icon, subtext, bg }) {
 }
 
 // ==========================================
-// MODULE 2: EVENT MANAGEMENT
+// MODULE 2: EVENT MANAGEMENT (DENGAN FLUSH & EDIT & DELETE)
 // ==========================================
 function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPublicEventId }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isUnlimited, setIsUnlimited] = useState(false);
+  const [isEditUnlimited, setIsEditUnlimited] = useState(false);
   
   const [newEvent, setNewEvent] = useState({
     name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, description: ''
+  });
+
+  const [editEventData, setEditEventData] = useState({
+    id: '', name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, description: ''
   });
 
   const handleCreateEvent = async (e) => {
@@ -1123,6 +1130,112 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       setShowCreateModal(false);
       setNewEvent({ name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, description: '' });
       setIsUnlimited(false);
+      fetchRealEvents();
+    }
+  };
+
+  // OPEN EDIT MODAL
+  const handleOpenEdit = (evt) => {
+    setEditEventData({
+      id: evt.id,
+      name: evt.name,
+      category: evt.category,
+      date: evt.date,
+      time: evt.time,
+      venue: evt.venue,
+      capacity: evt.capacity || 200,
+      allowFamily: evt.allowFamily,
+      description: evt.description || ''
+    });
+    setIsEditUnlimited(evt.capacity === null || evt.capacity === 0);
+    setShowEditModal(true);
+  };
+
+  // UPDATE EVENT
+  const handleUpdateEvent = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+
+    const payload = {
+      name: editEventData.name,
+      category: editEventData.category,
+      date: editEventData.date,
+      time: editEventData.time,
+      venue: editEventData.venue,
+      capacity: isEditUnlimited ? null : (parseInt(editEventData.capacity) || 100),
+      allow_family: editEventData.allowFamily,
+      description: editEventData.description
+    };
+
+    const { error } = await supabase.from('events').update(payload).eq('id', editEventData.id);
+
+    setSaving(false);
+
+    if (error) {
+      showToast(`Gagal memperbarui acara: ${error.message}`, 'error');
+    } else {
+      showToast(`Acara "${editEventData.name}" berhasil diperbarui!`);
+      setShowEditModal(false);
+      fetchRealEvents();
+    }
+  };
+
+  // FLUSH PENDAFTAR (RESET KUOTA TERISI JADI 0 & HAPUS SELURUH PENDAFTAR ACARA INI)
+  const handleResetRegistrants = async (eventId, eventName) => {
+    if (!window.confirm(`⚠️ KONFIRMASI RESET PENDAFTAR:\n\nApakah Anda yakin ingin menghapus SELURUH pendaftar & E-Tiket untuk acara "${eventName}"?\n\nAngka kuota pendaftar akan kembali menjadi 0. Acara tidak akan dihapus.`)) {
+      return;
+    }
+
+    setSaving(true);
+
+    // 1. Hapus pendaftaran di tabel registrations
+    const { error: deleteError } = await supabase
+      .from('registrations')
+      .delete()
+      .eq('event_id', eventId);
+
+    if (deleteError) {
+      showToast(`Gagal mereset data pendaftar: ${deleteError.message}`, 'error');
+      setSaving(false);
+      return;
+    }
+
+    // 2. Reset hitungan registered & checked_in di tabel events menjadi 0
+    const { error: resetError } = await supabase
+      .from('events')
+      .update({ registered: 0, checked_in: 0 })
+      .eq('id', eventId);
+
+    setSaving(false);
+
+    if (resetError) {
+      showToast(`Gagal mereset hitungan kuota: ${resetError.message}`, 'error');
+    } else {
+      showToast(`Seluruh pendaftar "${eventName}" berhasil dihapus & kuota kembali ke 0!`);
+      fetchRealEvents();
+    }
+  };
+
+  // HAPUS ACARA PERMANEN BESERTA PENDAFTARNYA
+  const handleDeleteEvent = async (eventId, eventName) => {
+    if (!window.confirm(`🚨 PERHATIAN PENUH HAPUS ACARA:\n\nApakah Anda yakin ingin menghapus ACARA "${eventName}" secar permanen?\n\nSemua pendaftar, E-Tiket, dan histori acara ini akan HILANG dari database!`)) {
+      return;
+    }
+
+    setSaving(true);
+
+    // 1. Hapus pendaftaran di registrations
+    await supabase.from('registrations').delete().eq('event_id', eventId);
+
+    // 2. Hapus event dari tabel events
+    const { error } = await supabase.from('events').delete().eq('id', eventId);
+
+    setSaving(false);
+
+    if (error) {
+      showToast(`Gagal menghapus acara: ${error.message}`, 'error');
+    } else {
+      showToast(`Acara "${eventName}" berhasil dihapus permanen!`);
       fetchRealEvents();
     }
   };
@@ -1161,50 +1274,84 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
             const isUnlim = evt.capacity === null || evt.capacity === 0;
             const registerUrl = `${window.location.origin}/#/register/${evt.id}`;
             return (
-              <div key={evt.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition">
-                <div className="h-32 bg-slate-800 relative">
-                  <img src={evt.banner} alt={evt.name} className="w-full h-full object-cover opacity-60" />
-                  <div className="absolute top-3 left-3">
-                    <span className="bg-slate-900/80 text-white px-2.5 py-1 rounded text-[11px] font-bold backdrop-blur-sm">
-                      {evt.category}
-                    </span>
+              <div key={evt.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col justify-between">
+                <div>
+                  <div className="h-32 bg-slate-800 relative">
+                    <img src={evt.banner} alt={evt.name} className="w-full h-full object-cover opacity-60" />
+                    <div className="absolute top-3 left-3">
+                      <span className="bg-slate-900/80 text-white px-2.5 py-1 rounded text-[11px] font-bold backdrop-blur-sm">
+                        {evt.category}
+                      </span>
+                    </div>
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                      <span className="bg-emerald-500 text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                        {evt.status}
+                      </span>
+                    </div>
                   </div>
-                  <div className="absolute top-3 right-3">
-                    <span className="bg-emerald-500 text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                      {evt.status}
-                    </span>
+
+                  <div className="p-4 md:p-5 space-y-4">
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-base">{evt.name}</h4>
+                        <p className="text-xs text-slate-500 line-clamp-2 mt-1">{evt.description}</p>
+                      </div>
+                      
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button 
+                          onClick={() => handleOpenEdit(evt)} 
+                          className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                          title="Edit Acara Ini"
+                        >
+                          <Edit size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <div>📅 <strong>Tanggal:</strong> {evt.date}</div>
+                      <div>⏰ <strong>Waktu:</strong> {evt.time}</div>
+                      <div className="sm:col-span-2">📍 <strong>Lokasi:</strong> {evt.venue}</div>
+                      <div className="sm:col-span-2">👨‍👩‍👧‍👦 <strong>Tipe:</strong> {evt.allowFamily ? 'Individu & Keluarga' : 'Hanya Individu'}</div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-4 md:p-5 space-y-4">
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-base">{evt.name}</h4>
-                    <p className="text-xs text-slate-500 line-clamp-2 mt-1">{evt.description}</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div>📅 <strong>Tanggal:</strong> {evt.date}</div>
-                    <div>⏰ <strong>Waktu:</strong> {evt.time}</div>
-                    <div className="sm:col-span-2">📍 <strong>Lokasi:</strong> {evt.venue}</div>
-                    <div className="sm:col-span-2">👨‍👩‍👧‍👦 <strong>Tipe:</strong> {evt.allowFamily ? 'Individu & Keluarga' : 'Hanya Individu'}</div>
-                  </div>
-
+                <div className="p-4 md:p-5 pt-0 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-slate-100 gap-2">
                     <div className="text-xs">
                       <span className="text-slate-500">Pendaftar: </span>
                       <strong className="text-teal-700 font-bold">{evt.registered}</strong> / {isUnlim ? '∞ Unlimited' : `${evt.capacity} Porsi`}
                     </div>
-                    <div className="flex gap-1.5">
+                    
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <button onClick={() => {
                         window.location.hash = `#/register/${evt.id}`;
                       }} className="p-2 bg-teal-50 text-teal-700 hover:bg-teal-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-teal-200">
-                        <Ticket size={14} /> Buka Form Pendaftaran
+                        <Ticket size={14} /> Form
                       </button>
+
                       <button onClick={() => {
                         navigator.clipboard.writeText(registerUrl);
                         showToast(`URL disalin: ${registerUrl}`);
                       }} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg text-xs flex items-center justify-center gap-1 border border-slate-200" title="Salin Link Pendaftaran Publik">
                         <Copy size={14} /> Link
+                      </button>
+
+                      <button 
+                        onClick={() => handleResetRegistrants(evt.id, evt.name)} 
+                        className="p-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-amber-200"
+                        title="Reset/Flush Kuota Pendaftar ke 0"
+                      >
+                        <RotateCcw size={14} /> Flush (Reset)
+                      </button>
+
+                      <button 
+                        onClick={() => handleDeleteEvent(evt.id, evt.name)} 
+                        className="p-2 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-rose-200"
+                        title="Hapus Acara Permanen"
+                      >
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
@@ -1215,6 +1362,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
         </div>
       )}
 
+      {/* MODAL BUAT ACARA BARU */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 my-8">
@@ -1293,6 +1441,92 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 border rounded-lg text-slate-600">Batal</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">
                   {saving ? 'Menyimpan...' : 'Simpan Acara'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT ACARA */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 my-8">
+            <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm">Edit Acara: {editEventData.name}</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <form onSubmit={handleUpdateEvent} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Nama Acara *</label>
+                <input required type="text" value={editEventData.name} onChange={e => setEditEventData({...editEventData, name: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 focus:ring-1 focus:ring-teal-500" />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Kategori</label>
+                  <select value={editEventData.category} onChange={e => setEditEventData({...editEventData, category: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
+                    <option value="Ibadah Minggu">Ibadah Minggu</option>
+                    <option value="Natal">Natal</option>
+                    <option value="Paskah">Paskah</option>
+                    <option value="Youth Gathering">Youth Gathering</option>
+                    <option value="Seminar / Konferensi">Seminar / Konferensi</option>
+                    <option value="Lain-lain">Lain-lain</option>
+                  </select>
+                </div>
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-semibold text-slate-700">Kapasitas Maksimal</label>
+                    <label className="flex items-center gap-1 cursor-pointer text-[11px] text-teal-700 font-bold">
+                      <input 
+                        type="checkbox" 
+                        checked={isEditUnlimited} 
+                        onChange={e => setIsEditUnlimited(e.target.checked)}
+                      />
+                      <span>Tanpa Batas (∞)</span>
+                    </label>
+                  </div>
+                  <input 
+                    type="number" 
+                    disabled={isEditUnlimited}
+                    value={isEditUnlimited ? '' : editEventData.capacity} 
+                    onChange={e => setEditEventData({...editEventData, capacity: e.target.value})} 
+                    placeholder={isEditUnlimited ? "Kapasitas Tidak Terbatas" : "200"}
+                    className="w-full p-2.5 border rounded-lg border-slate-300 disabled:bg-slate-100 disabled:text-slate-400" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Tanggal Acara *</label>
+                  <input type="date" required value={editEventData.date} onChange={e => setEditEventData({...editEventData, date: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Jam / Waktu</label>
+                  <input type="text" value={editEventData.time} onChange={e => setEditEventData({...editEventData, time: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Tempat / Ruangan</label>
+                <input type="text" value={editEventData.venue} onChange={e => setEditEventData({...editEventData, venue: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300" />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Kata-kata Pengantar / Deskripsi Acara</label>
+                <textarea rows={4} value={editEventData.description} onChange={e => setEditEventData({...editEventData, description: e.target.value})} placeholder="Masukkan kata-kata pengantar panjang, ayat Alkitab, atau pengumuman..." className="w-full p-2.5 border rounded-lg border-slate-300 font-sans"></textarea>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input type="checkbox" id="editFamilyOpt" checked={editEventData.allowFamily} onChange={e => setEditEventData({...editEventData, allowFamily: e.target.checked})} />
+                <label htmlFor="editFamilyOpt" className="font-semibold text-slate-700">Izinkan Pendaftaran Keluarga / Rombongan</label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 border rounded-lg text-slate-600">Batal</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                  {saving ? 'Memperbarui...' : 'Perbarui Acara'}
                 </button>
               </div>
             </form>
