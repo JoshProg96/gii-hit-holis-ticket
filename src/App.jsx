@@ -2061,7 +2061,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 }
 
 // ==========================================
-// MODULE 3: CHECK-IN SCANNER QR REAL (IOS & PC FIX)
+// MODULE 3: CHECK-IN SCANNER QR REAL (CDN VERSION)
 // ==========================================
 function CheckInModule({ showToast }) {
   const [scanResult, setScanResult] = useState(null);
@@ -2073,10 +2073,23 @@ function CheckInModule({ showToast }) {
   useEffect(() => {
     let html5QrCode = null;
 
-    const startScanner = async () => {
+    const loadScriptAndStart = () => {
+      if (window.Html5Qrcode) {
+        initScanner();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+      script.async = true;
+      script.onload = () => initScanner();
+      script.onerror = () => setCameraError("Gagal memuat library pemindai QR.");
+      document.body.appendChild(script);
+    };
+
+    const initScanner = async () => {
       try {
-        const { Html5Qrcode } = await import('html5-qrcode');
-        html5QrCode = new Html5Qrcode("reader");
+        html5QrCode = new window.Html5Qrcode("reader");
 
         const config = { 
           fps: 10, 
@@ -2084,14 +2097,10 @@ function CheckInModule({ showToast }) {
           aspectRatio: 1.0
         };
 
-        const qrCodeSuccessCallback = (decodedText) => {
-          handleProcessCheckIn(decodedText.trim());
-        };
-
         await html5QrCode.start(
           { facingMode: "environment" },
           config,
-          qrCodeSuccessCallback
+          (decodedText) => handleProcessCheckIn(decodedText.trim())
         );
       } catch (err) {
         console.warn("Gagal pakai kamera belakang, mencoba kamera default:", err);
@@ -2110,7 +2119,7 @@ function CheckInModule({ showToast }) {
       }
     };
 
-    startScanner();
+    loadScriptAndStart();
 
     return () => {
       if (html5QrCode && html5QrCode.isScanning) {
