@@ -214,7 +214,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const isEmailEnabled = eventData.require_email ?? true;
+    const isEmailEnabled = eventData?.require_email ?? true;
 
     if (phoneError || (isEmailEnabled && emailError)) {
       alert('Mohon perbaiki data kontak yang belum sesuai.');
@@ -800,9 +800,9 @@ export default function App() {
         registered: e.registered || 0,
         checkedIn: e.checked_in || 0,
         status: e.status,
-        allowFamily: e.allow_family ?? true,
-        enableQr: e.enable_qr ?? true,
-        requireEmail: e.require_email ?? true,
+        allow_family: e.allow_family ?? true,
+        enable_qr: e.enable_qr ?? true,
+        require_email: e.require_email ?? true,
         banner: e.banner || 'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&q=80&w=1000',
         description: e.description
       }));
@@ -1253,11 +1253,11 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
   const [isEditUnlimited, setIsEditUnlimited] = useState(false);
   
   const [newEvent, setNewEvent] = useState({
-    name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, enableQr: true, requireEmail: true, description: ''
+    name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allow_family: true, enable_qr: true, require_email: true, description: ''
   });
 
   const [editEventData, setEditEventData] = useState({
-    id: '', name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, enableQr: true, requireEmail: true, description: ''
+    id: '', name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allow_family: true, enable_qr: true, require_email: true, description: ''
   });
 
   const handleCreateEvent = async (e) => {
@@ -1276,9 +1276,9 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       registered: 0,
       checked_in: 0,
       status: 'Aktif',
-      allow_family: newEvent.allowFamily,
-      enable_qr: newEvent.enableQr,
-      require_email: newEvent.requireEmail,
+      allow_family: newEvent.allow_family,
+      enable_qr: newEvent.enable_qr,
+      require_email: newEvent.require_email,
       description: newEvent.description || 'Kegiatan Ibadah Resmi GII Holis Bandung.'
     };
 
@@ -1291,7 +1291,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
     } else {
       showToast('Acara berhasil disimpan!');
       setShowCreateModal(false);
-      setNewEvent({ name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, enableQr: true, requireEmail: true, description: '' });
+      setNewEvent({ name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allow_family: true, enable_qr: true, require_email: true, description: '' });
       setIsUnlimited(false);
       fetchRealEvents();
     }
@@ -1306,9 +1306,9 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       time: evt.time,
       venue: evt.venue,
       capacity: evt.capacity || 200,
-      allowFamily: evt.allowFamily,
-      enableQr: evt.enableQr ?? true,
-      requireEmail: evt.requireEmail ?? true,
+      allow_family: evt.allow_family ?? evt.allowFamily,
+      enable_qr: evt.enable_qr ?? evt.enableQr ?? true,
+      require_email: evt.require_email ?? evt.requireEmail ?? true,
       description: evt.description || ''
     });
     setIsEditUnlimited(evt.capacity === null || evt.capacity === 0);
@@ -1326,9 +1326,9 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       time: editEventData.time,
       venue: editEventData.venue,
       capacity: isEditUnlimited ? null : (parseInt(editEventData.capacity) || 100),
-      allow_family: editEventData.allowFamily,
-      enable_qr: editEventData.enableQr,
-      require_email: editEventData.requireEmail,
+      allow_family: editEventData.allow_family,
+      enable_qr: editEventData.enable_qr,
+      require_email: editEventData.require_email,
       description: editEventData.description
     };
 
@@ -1552,6 +1552,10 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
           {events.map(evt => {
             const isUnlim = evt.capacity === null || evt.capacity === 0;
             const registerUrl = `${window.location.origin}/#/register/${evt.id}`;
+            const isQrOn = evt.enable_qr ?? evt.enableQr ?? true;
+            const isEmailOn = evt.require_email ?? evt.requireEmail ?? true;
+            const isFamilyOn = evt.allow_family ?? evt.allowFamily ?? true;
+
             return (
               <div key={evt.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col justify-between">
                 <div>
@@ -1591,14 +1595,14 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                     <div>📅 <strong>Tanggal:</strong> {evt.date}</div>
                     <div>⏰ <strong>Waktu:</strong> {evt.time}</div>
                     <div className="sm:col-span-2">📍 <strong>Lokasi:</strong> {evt.venue}</div>
-                    <div>👨‍👩‍👧‍👦 <strong>Tipe:</strong> {evt.allowFamily ? 'Rombongan' : 'Individu'}</div>
+                    <div>👨‍👩‍👧‍👦 <strong>Tipe:</strong> {isFamilyOn ? 'Rombongan' : 'Individu'}</div>
                     <div>
                       <strong>Fitur:</strong>{' '}
-                      {evt.enableQr && evt.requireEmail ? (
+                      {isQrOn && isEmailOn ? (
                         <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px] border border-emerald-300">
                           🎟️ E-Tiket QR + Email
                         </span>
-                      ) : evt.enableQr ? (
+                      ) : isQrOn ? (
                         <span className="bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded text-[10px] border border-teal-300">
                           🎟️ E-Tiket QR Code Only
                         </span>
@@ -1929,17 +1933,17 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-700">🎟️ Terbitkan E-Tiket & QR Code</span>
-                  <input type="checkbox" checked={newEvent.enableQr} onChange={e => setNewEvent({...newEvent, enableQr: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                  <input type="checkbox" checked={newEvent.enable_qr} onChange={e => setNewEvent({...newEvent, enable_qr: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-700">✉️ Minta Email & Kirim Otomatis</span>
-                  <input type="checkbox" checked={newEvent.requireEmail} onChange={e => setNewEvent({...newEvent, requireEmail: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                  <input type="checkbox" checked={newEvent.require_email} onChange={e => setNewEvent({...newEvent, require_email: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-700">👨‍👩‍👧‍👦 Izinkan Pendaftaran Keluarga / Rombongan</span>
-                  <input type="checkbox" checked={newEvent.allowFamily} onChange={e => setNewEvent({...newEvent, allowFamily: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                  <input type="checkbox" checked={newEvent.allow_family} onChange={e => setNewEvent({...newEvent, allow_family: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
                 </div>
               </div>
 
@@ -2030,17 +2034,17 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-700">🎟️ Terbitkan E-Tiket & QR Code</span>
-                  <input type="checkbox" checked={editEventData.enableQr} onChange={e => setEditEventData({...editEventData, enableQr: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                  <input type="checkbox" checked={editEventData.enable_qr} onChange={e => setEditEventData({...editEventData, enable_qr: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-700">✉️ Minta Email & Kirim Otomatis</span>
-                  <input type="checkbox" checked={editEventData.requireEmail} onChange={e => setEditEventData({...editEventData, requireEmail: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                  <input type="checkbox" checked={editEventData.require_email} onChange={e => setEditEventData({...editEventData, require_email: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-700">👨‍👩‍👧‍👦 Izinkan Pendaftaran Keluarga / Rombongan</span>
-                  <input type="checkbox" checked={editEventData.allowFamily} onChange={e => setEditEventData({...editEventData, allowFamily: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                  <input type="checkbox" checked={editEventData.allow_family} onChange={e => setEditEventData({...editEventData, allow_family: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
                 </div>
               </div>
 
@@ -2073,7 +2077,7 @@ function CheckInModule({ showToast }) {
 
     const startScanner = async () => {
       try {
-        const { Html5Qrcode } = await import('https://esm.sh/html5-qrcode');
+        const { Html5Qrcode } = await import('html5-qrcode');
         html5QrCode = new Html5Qrcode("reader");
 
         const config = { 
@@ -2674,19 +2678,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
     }
 
     setSaving(true);
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: newUser.email,
-      password: newUser.password,
-      options: { data: { role: newUser.role, name: newUser.name } }
-    });
-
-    if (authError) {
-      showToast(`Gagal mendaftarkan user auth: ${authError.message}`, 'error');
-      setSaving(false);
-      return;
-    }
-
-    const userId = authData.user?.id || `USR-${Date.now()}`;
+    const userId = `USR-${Date.now()}`;
     const { error: profileError } = await supabase.from('profiles').insert([{
       id: userId,
       name: newUser.name,
