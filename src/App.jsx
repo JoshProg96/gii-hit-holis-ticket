@@ -585,13 +585,15 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                       )}
 
                       {field.field_type === 'date' && (
-                        <input 
-                          type="date"
-                          required={field.is_required}
-                          value={customAnswers[field.id] || ''}
-                          onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
-                          className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
-                        />
+                        <div className="relative overflow-hidden rounded-lg border border-slate-700 bg-slate-900 focus-within:border-teal-500">
+                          <input 
+                            type="date"
+                            required={field.is_required}
+                            value={customAnswers[field.id] || ''}
+                            onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                            className="w-full p-2.5 bg-transparent text-white focus:outline-none text-xs appearance-none block"
+                          />
+                        </div>
                       )}
 
                       {field.field_type === 'textarea' && (
