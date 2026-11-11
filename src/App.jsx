@@ -61,7 +61,7 @@ function Login({ onLoginSuccess }) {
             GII
           </div>
           <h2 className="text-xl md:text-2xl font-bold text-white">Sistem Tiket GII Holis</h2>
-          <p className="text-slate-400 text-xs md:text-sm mt-1">Portal Super Admin & Pengelola</p>
+          <p className="text-slate-400 text-xs md:text-sm mt-1">Portal Super Admin &amp; Pengelola</p>
         </div>
 
         {errorMsg && (
@@ -416,7 +416,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             {/* TAMPILKAN E-TIKET QR HANYA JIKA FITUR QR DIAKTIFKAN */}
             {isQrEnabled ? (
               <div className="space-y-3">
-                <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider text-center">Daftar E-Tiket & Kode QR</h4>
+                <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider text-center">Daftar E-Tiket &amp; Kode QR</h4>
                 {successRegistration.tickets.map((tkt, idx) => (
                   <div key={tkt.id} className="bg-white text-slate-900 p-4 rounded-xl shadow border border-slate-200 flex flex-col items-center text-center space-y-2">
                     <div className="w-full flex justify-between items-center text-[10px] text-slate-500 font-bold border-b pb-1">
@@ -708,7 +708,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
                   {members.length === 0 ? (
                     <div className="p-3 bg-slate-900/50 rounded-lg border border-dashed border-slate-700 text-slate-400 text-[11px] text-center">
-                      Belum ada anggota tambahan. Klik "+ Tambah Anggota" di atas jika membawa keluarga/teman.
+                      Belum ada anggota tambahan. Klik &quot;+ Tambah Anggota&quot; di atas jika membawa keluarga/teman.
                     </div>
                   ) : (
                     members.map((member, idx) => (
@@ -951,17 +951,17 @@ export default function App() {
 
           {currentRole === 'SUPER_ADMIN' && (
             <>
-              <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Jemaat & CRM</div>
+              <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Jemaat &amp; CRM</div>
               <SidebarItem id="contacts" icon={<Users size={18} />} label="Kontak & CRM Jemaat" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
               <SidebarItem id="invitations" icon={<Share2 size={18} />} label="Undangan Digital" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
               <SidebarItem id="giftcards" icon={<Gift size={18} />} label="Digital Gift Cards" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
               <SidebarItem id="engagement" icon={<Heart size={18} />} label="Engagement Center" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
 
-              <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Otomasi & Pesan</div>
+              <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Otomasi &amp; Pesan</div>
               <SidebarItem id="email" icon={<Mail size={18} />} label="Kampanye Email" active={activeTab} setActive={setActiveTab} statusTag="READY" closeMobile={() => setMobileMenuOpen(false)} />
               <SidebarItem id="whatsapp" icon={<MessageSquare size={18} />} label="Integrasi WhatsApp" active={activeTab} setActive={setActiveTab} statusTag="PENDING" closeMobile={() => setMobileMenuOpen(false)} />
 
-              <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Sistem & Pengaturan</div>
+              <div className="px-3 py-1 mt-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Sistem &amp; Pengaturan</div>
               <SidebarItem id="reports" icon={<BarChart3 size={18} />} label="Laporan & Export" active={activeTab} setActive={setActiveTab} statusTag="ONGOING" closeMobile={() => setMobileMenuOpen(false)} />
               <SidebarItem id="roles" icon={<Shield size={18} />} label="Pengguna & Akses" active={activeTab} setActive={setActiveTab} closeMobile={() => setMobileMenuOpen(false)} />
             </>
@@ -970,7 +970,7 @@ export default function App() {
 
         <div className="p-3 bg-slate-950 border-t border-slate-800 text-xs space-y-2">
           <div>
-            <label className="block text-slate-400 mb-1 text-[11px]">Role & Hak Akses Anda:</label>
+            <label className="block text-slate-400 mb-1 text-[11px]">Role &amp; Hak Akses Anda:</label>
             <div className="w-full bg-slate-800 text-teal-400 font-bold rounded p-2 border border-slate-700 flex items-center justify-between text-xs">
               <span>
                 {currentRole === 'SUPER_ADMIN' && '🛡️ Super Admin'}
@@ -1046,7 +1046,7 @@ export default function App() {
             ) : (
               <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-center text-rose-700 space-y-2">
                 <h3 className="font-bold text-sm">⛔ Akses Ditolak</h3>
-                <p className="text-xs">Halaman Scanner QR hanya diperuntukkan untuk Staff Check-In & Super Admin.</p>
+                <p className="text-xs">Halaman Scanner QR hanya diperuntukkan untuk Staff Check-In &amp; Super Admin.</p>
               </div>
             )
           )}
@@ -1065,7 +1065,7 @@ export default function App() {
             ) : (
               <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-center text-rose-700 space-y-2">
                 <h3 className="font-bold text-sm">⛔ Akses Ditolak</h3>
-                <p className="text-xs">Halaman Pengaturan Peran & Hak Akses hanya dapat diakses oleh Super Admin.</p>
+                <p className="text-xs">Halaman Pengaturan Peran &amp; Hak Akses hanya dapat diakses oleh Super Admin.</p>
               </div>
             )
           )}
@@ -1129,7 +1129,7 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4 md:p-5 shadow-sm space-y-4">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100">
             <h3 className="font-bold text-slate-800 text-xs md:text-sm flex items-center gap-2">
-              <Calendar size={18} className="text-teal-600" /> Acara Mendatang & Kuota
+              <Calendar size={18} className="text-teal-600" /> Acara Mendatang &amp; Kuota
             </h3>
             {currentRole !== 'CHECKIN_STAFF' && (
               <button onClick={() => setActiveTab('events')} className="text-xs text-teal-600 hover:underline font-semibold">
@@ -1215,7 +1215,7 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
 
           <div className="p-3 bg-slate-100 rounded-lg text-xs text-slate-600 border border-slate-200 flex items-center gap-2">
             <Lock size={16} className="text-slate-400 shrink-0" />
-            <span>Sistem penyimpanan terenkripsi & aman.</span>
+            <span>Sistem penyimpanan terenkripsi &amp; aman.</span>
           </div>
         </div>
       </div>
@@ -1545,7 +1545,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500 text-xs space-y-3">
           <Calendar size={36} className="mx-auto text-slate-300" />
           <p className="font-semibold text-slate-700">Belum Ada Acara</p>
-          <p className="text-slate-400">Klik tombol "Buat Acara Baru" di atas untuk menambahkan acara perdana.</p>
+          <p className="text-slate-400">Klik tombol &quot;Buat Acara Baru&quot; di atas untuk menambahkan acara perdana.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1676,7 +1676,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
             <div className="px-6 py-4 bg-indigo-900 text-white flex justify-between items-center shrink-0">
               <div>
                 <span className="text-[10px] bg-indigo-700 text-indigo-100 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Editor Formulir & Pembagian Kuota Sesi
+                  Editor Formulir &amp; Pembagian Kuota Sesi
                 </span>
                 <h3 className="font-bold text-sm text-white mt-1">Form Builder: {selectedEventForBuilder.name}</h3>
               </div>
@@ -1714,7 +1714,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                   {formFields.length === 0 ? (
                     <div className="p-8 bg-white rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500 space-y-2">
                       <p className="font-semibold text-slate-700">Belum ada pertanyaan kustom tambahan.</p>
-                      <p>Klik "+ Tambah Pertanyaan Baru" di bawah untuk membuat pilihan seperti Sesi Ibadah, Ukuran Kaos, Tanggal Lahir, dll.</p>
+                      <p>Klik &quot;+ Tambah Pertanyaan Baru&quot; di bawah untuk membuat pilihan seperti Sesi Ibadah, Ukuran Kaos, Tanggal Lahir, dll.</p>
                     </div>
                   ) : (
                     formFields.map((field, idx) => (
@@ -1755,7 +1755,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                         {['radio', 'dropdown'].includes(field.field_type) && (
                           <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                             <label className="block text-[11px] font-bold text-slate-600 uppercase">
-                              Daftar Pilihan Opsi & Batas Kuota Per Opsi (Mode B):
+                              Daftar Pilihan Opsi &amp; Batas Kuota Per Opsi (Mode B):
                             </label>
                             
                             {(field.options || []).map((opt, oIdx) => (
@@ -1932,12 +1932,12 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                 <label className="block text-[11px] font-bold text-slate-600 uppercase">Pengaturan Fitur Acara:</label>
 
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-700">🎟️ Terbitkan E-Tiket & QR Code</span>
+                  <span className="font-semibold text-slate-700">🎟️ Terbitkan E-Tiket &amp; QR Code</span>
                   <input type="checkbox" checked={newEvent.enable_qr} onChange={e => setNewEvent({...newEvent, enable_qr: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-700">✉️ Minta Email & Kirim Otomatis</span>
+                  <span className="font-semibold text-slate-700">✉️ Minta Email &amp; Kirim Otomatis</span>
                   <input type="checkbox" checked={newEvent.require_email} onChange={e => setNewEvent({...newEvent, require_email: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
                 </div>
 
@@ -2033,12 +2033,12 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                 <label className="block text-[11px] font-bold text-slate-600 uppercase">Pengaturan Fitur Acara:</label>
 
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-700">🎟️ Terbitkan E-Tiket & QR Code</span>
+                  <span className="font-semibold text-slate-700">🎟️ Terbitkan E-Tiket &amp; QR Code</span>
                   <input type="checkbox" checked={editEventData.enable_qr} onChange={e => setEditEventData({...editEventData, enable_qr: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-700">✉️ Minta Email & Kirim Otomatis</span>
+                  <span className="font-semibold text-slate-700">✉️ Minta Email &amp; Kirim Otomatis</span>
                   <input type="checkbox" checked={editEventData.require_email} onChange={e => setEditEventData({...editEventData, require_email: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
                 </div>
 
@@ -2427,7 +2427,7 @@ function RegistrationsModule({ events, showToast }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div>
           <h3 className="font-bold text-base text-slate-900">Data Pendaftaran Jemaat</h3>
-          <p className="text-xs text-slate-500">Daftar seluruh jemaat & E-Tiket yang telah diterbitkan</p>
+          <p className="text-xs text-slate-500">Daftar seluruh jemaat &amp; E-Tiket yang telah diterbitkan</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
@@ -2734,7 +2734,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div>
-          <h3 className="font-bold text-base text-slate-900">Manajemen Pengguna & Hak Akses</h3>
+          <h3 className="font-bold text-base text-slate-900">Manajemen Pengguna &amp; Hak Akses</h3>
           <p className="text-xs text-slate-500">Kelola akun administrator, event admin, dan staff check-in database Supabase</p>
         </div>
         <button onClick={() => setShowAddModal(true)} className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow">
@@ -2750,14 +2750,14 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
           </div>
         ) : users.length === 0 ? (
           <div className="p-12 text-center text-xs text-slate-400">
-            Belum ada data pengguna tersimpan di tabel profiles. Klik "Tambah Pengguna Baru" untuk mulai.
+            Belum ada data pengguna tersimpan di tabel profiles. Klik &quot;Tambah Pengguna Baru&quot; untuk mulai.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                  <th className="p-3 font-semibold">Nama & Email</th>
+                  <th className="p-3 font-semibold">Nama &amp; Email</th>
                   <th className="p-3 font-semibold">Peran (Role)</th>
                   <th className="p-3 font-semibold">Status</th>
                   <th className="p-3 font-semibold text-right">Aksi</th>
@@ -2821,7 +2821,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
                 <label className="block font-semibold mb-1 text-slate-700">Hak Akses (Role)</label>
                 <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
                   <option value="CHECKIN_STAFF">Staff Check-In (Scanner QR)</option>
-                  <option value="EVENT_ADMIN">Event Admin (Kelola Acara & Pendaftaran)</option>
+                  <option value="EVENT_ADMIN">Event Admin (Kelola Acara &amp; Pendaftaran)</option>
                   <option value="SUPER_ADMIN">Super Admin (Akses Penuh)</option>
                 </select>
               </div>
@@ -2856,7 +2856,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
                 <label className="block font-semibold mb-1 text-slate-700">Hak Akses (Role)</label>
                 <select value={editUser.role} onChange={e => setEditUser({...editUser, role: e.target.value})} className="w-full p-2.5 border rounded-lg border-slate-300 font-medium">
                   <option value="CHECKIN_STAFF">Staff Check-In (Scanner QR)</option>
-                  <option value="EVENT_ADMIN">Event Admin (Kelola Acara & Pendaftaran)</option>
+                  <option value="EVENT_ADMIN">Event Admin (Kelola Acara &amp; Pendaftaran)</option>
                   <option value="SUPER_ADMIN">Super Admin (Akses Penuh)</option>
                 </select>
               </div>
