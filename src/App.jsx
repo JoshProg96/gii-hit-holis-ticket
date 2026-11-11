@@ -1588,11 +1588,25 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <div>📅 <strong>Tanggal:</strong> {evt.date}</div>
-                      <div>⏰ <strong>Waktu:</strong> {evt.time}</div>
-                      <div className="sm:col-span-2">📍 <strong>Lokasi:</strong> {evt.venue}</div>
-                      <div>👨‍👩‍👧‍👦 <strong>Tipe:</strong> {evt.allowFamily ? 'Rombongan' : 'Individu'}</div>
-                      <div>🎟️ <strong>E-Tiket:</strong> {evt.enableQr ? 'QR Code' : 'Tanpa QR'}</div>
+                    <div>📅 <strong>Tanggal:</strong> {evt.date}</div>
+                    <div>⏰ <strong>Waktu:</strong> {evt.time}</div>
+                    <div className="sm:col-span-2">📍 <strong>Lokasi:</strong> {evt.venue}</div>
+                    <div>👨‍👩‍👧‍👦 <strong>Tipe:</strong> {evt.allowFamily ? 'Rombongan' : 'Individu'}</div>
+                    <div>
+                      <strong>Fitur:</strong>{' '}
+                      {evt.enableQr && evt.requireEmail ? (
+                        <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px] border border-emerald-300">
+                          🎟️ E-Tiket QR + Email
+                        </span>
+                      ) : evt.enableQr ? (
+                        <span className="bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded text-[10px] border border-teal-300">
+                          🎟️ E-Tiket QR Code Only
+                        </span>
+                      ) : (
+                        <span className="bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded text-[10px]">
+                          📝 Tanpa QR Code
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
