@@ -618,7 +618,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                       )}
 
                       {field.field_type === 'radio' && (
-                        <div className="space-y-2 pt-1">
+                        <div className="space-y-2.5 pt-1">
                           {(field.options || []).map((optItem, oIdx) => {
                             const labelStr = typeof optItem === 'object' ? optItem.label : optItem;
                             const maxQ = typeof optItem === 'object' ? parseInt(optItem.quota || 0) : 0;
@@ -628,15 +628,15 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                             return (
                               <label 
                                 key={oIdx} 
-                                className={`flex items-center justify-between p-3 rounded-lg border transition ${
+                                className={`flex items-center justify-between p-3.5 rounded-xl border transition cursor-pointer ${
                                   isOptFull 
                                     ? 'bg-slate-900/40 border-slate-800 opacity-50 cursor-not-allowed' 
                                     : customAnswers[field.id] === labelStr
                                       ? 'bg-slate-900 border-teal-500 shadow-sm'
-                                      : 'bg-slate-900 border-slate-700 cursor-pointer hover:border-slate-500'
+                                      : 'bg-slate-900 border-slate-700 hover:border-slate-500'
                                 }`}
                               >
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 pr-3 flex-1">
                                   <input 
                                     type="radio"
                                     disabled={isOptFull}
@@ -644,19 +644,21 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                                     value={labelStr}
                                     checked={customAnswers[field.id] === labelStr}
                                     onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
-                                    className="w-4 h-4 text-teal-500 focus:ring-teal-500"
+                                    className="w-4 h-4 text-teal-500 focus:ring-teal-500 shrink-0"
                                   />
-                                  <span className={`text-xs font-semibold ${isOptFull ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+                                  <span className={`text-xs font-semibold leading-relaxed ${isOptFull ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
                                     {labelStr}
                                   </span>
                                 </div>
 
                                 {maxQ > 0 && (
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                                    isOptFull ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-teal-400'
+                                  <div className={`w-32 py-1.5 px-2.5 rounded-lg text-center font-mono text-[11px] font-bold shrink-0 ${
+                                    isOptFull 
+                                      ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
+                                      : 'bg-slate-800 text-teal-400 border border-slate-700'
                                   }`}>
-                                    {isOptFull ? `❌ Penuh (${maxQ}/${maxQ})` : `Sisa ${maxQ - countNow} Porsi`}
-                                  </span>
+                                    {isOptFull ? 'Penuh' : `Kuota : ${maxQ - countNow}`}
+                                  </div>
                                 )}
                               </label>
                             );
