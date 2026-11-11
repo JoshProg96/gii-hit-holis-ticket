@@ -109,13 +109,13 @@ function Login({ onLoginSuccess }) {
 }
 
 // ==========================================
-// COMPONENT: PUBLIC FORM REGISTRATION (DUAL QUOTA ENGINE)
+// COMPONENT: PUBLIC FORM REGISTRATION (SUPPORT OPTIONAL EMAIL & OPTIONAL QR)
 // ==========================================
 function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const [eventData, setEventData] = useState(null);
   const [customFields, setCustomFields] = useState([]);
   const [customAnswers, setCustomAnswers] = useState({});
-  const [optionCounts, setOptionCounts] = useState({}); // Menghitung pendaftar per opsi
+  const [optionCounts, setOptionCounts] = useState({});
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [successRegistration, setSuccessRegistration] = useState(null);
@@ -138,14 +138,12 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const fetchEventAndData = async () => {
       setLoadingEvent(true);
       
-      // 1. Fetch Event Utama
       const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
       if (event) {
         setEventData(event);
         if (!event.allow_family) setRegType('INDIVIDUAL');
       }
 
-      // 2. Fetch Pertanyaan Form Builder Dinamis
       const { data: fields } = await supabase
         .from('event_form_fields')
         .select('*')
@@ -154,7 +152,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
       if (fields) setCustomFields(fields);
 
-      // 3. HITUNG JUMLAH JAWABAN TIAP OPSI REAL-TIME DARI DATABASE
       const { data: answersData } = await supabase
         .from('registration_answers')
         .select('answer_value, registration_id, registrations!inner(event_id, registration_members(id))')
@@ -217,7 +214,9 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (phoneError || emailError) {
+    const isEmailEnabled = eventData.require_email ?? true;
+
+    if (phoneError || (isEmailEnabled && emailError)) {
       alert('Mohon perbaiki data kontak yang belum sesuai.');
       return;
     }
@@ -229,7 +228,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
     const totalRequestedTickets = regType === 'GROUP' ? members.length + 1 : 1;
 
-    // VALIDASI MODE A: KUOTA TUNGGAL ACARA
+    // VALIDASI KUOTA UTAMA ACARA
     if (eventData.capacity && eventData.capacity > 0) {
       if ((eventData.registered + totalRequestedTickets) > eventData.capacity) {
         alert(`⚠️ Pendaftaran Ditolak:\n\nKuota total acara tersisa ${eventData.capacity - eventData.registered} porsi, tidak mencukupi untuk ${totalRequestedTickets} orang.`);
@@ -237,7 +236,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       }
     }
 
-    // VALIDASI MODE B: BATASAN KUOTA PER OPSI (FORM BUILDER)
+    // VALIDASI BATASAN KUOTA PER OPSI
     for (const field of customFields) {
       if (field.is_required && !customAnswers[field.id]) {
         alert(`Mohon isi pertanyaan wajib: "${field.label}"`);
@@ -287,7 +286,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       event_id: eventId,
       name: cleanInputName,
       whatsapp: fullFormattedPhone,
-      email: formData.email,
+      email: isEmailEnabled ? formData.email : '',
       notes: formData.notes || ''
     }]);
 
@@ -335,7 +334,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const { error: memError } = await supabase.from('registration_members').insert(memberPayloads);
 
     if (memError) {
-      alert(`Gagal menyimpan data tiket: ${memError.message}`);
+      alert(`Gagal menyimpan data pendaftaran: ${memError.message}`);
       setSubmitting(false);
       return;
     }
@@ -343,8 +342,8 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     const newRegisteredCount = (eventData.registered || 0) + memberPayloads.length;
     await supabase.from('events').update({ registered: newRegisteredCount }).eq('id', eventId);
 
-    // KIRIM EMAIL BILA DIISI
-    if (formData.email) {
+    // KIRIM EMAIL BILA DIAKTIFKAN
+    if (isEmailEnabled && formData.email) {
       sendConfirmationEmail({
         toEmail: formData.email,
         name: cleanInputName,
@@ -384,8 +383,9 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     );
   }
 
-  // JIKA TUNGGAL ACARA DAH PENUH TOTAL
   const isMainEventFull = eventData.capacity && eventData.capacity > 0 && eventData.registered >= eventData.capacity;
+  const isQrEnabled = eventData.enable_qr ?? true;
+  const isEmailEnabled = eventData.require_email ?? true;
 
   if (successRegistration) {
     return (
@@ -396,11 +396,12 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               <CheckCircle size={28} />
             </div>
             <h2 className="font-bold text-lg text-emerald-400">Pendaftaran Berhasil!</h2>
-            <p className="text-xs text-slate-400">Total {successRegistration.tickets.length} E-Tiket resmi terbit untuk kegiatan:</p>
+            <p className="text-xs text-slate-400">Terima kasih, pendaftaran Anda untuk kegiatan ini telah tercatat:</p>
             <h3 className="font-bold text-sm text-white bg-slate-800 p-2 rounded-lg border border-slate-700">{successRegistration.event.name}</h3>
-            {formData.email && (
+            
+            {isEmailEnabled && formData.email && (
               <div className="p-2 bg-teal-500/10 border border-teal-500/30 rounded-lg text-[11px] text-teal-300 font-medium">
-                📧 E-Tiket otomatis dikirimkan ke email <strong>{formData.email}</strong>
+                📧 Konfirmasi pendaftaran telah dikirimkan ke <strong>{formData.email}</strong>
               </div>
             )}
           </div>
@@ -412,28 +413,38 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               <div>📍 <strong>Lokasi:</strong> {successRegistration.event.venue}</div>
             </div>
 
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider text-center">Daftar E-Tiket & Kode QR</h4>
-              {successRegistration.tickets.map((tkt, idx) => (
-                <div key={tkt.id} className="bg-white text-slate-900 p-4 rounded-xl shadow border border-slate-200 flex flex-col items-center text-center space-y-2">
-                  <div className="w-full flex justify-between items-center text-[10px] text-slate-500 font-bold border-b pb-1">
-                    <span>TIKET #{idx + 1}</span>
-                    <span className="text-teal-700">{tkt.category}</span>
+            {/* TAMPILKAN E-TIKET QR HANYA JIKA FITUR QR DIAKTIFKAN */}
+            {isQrEnabled ? (
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider text-center">Daftar E-Tiket & Kode QR</h4>
+                {successRegistration.tickets.map((tkt, idx) => (
+                  <div key={tkt.id} className="bg-white text-slate-900 p-4 rounded-xl shadow border border-slate-200 flex flex-col items-center text-center space-y-2">
+                    <div className="w-full flex justify-between items-center text-[10px] text-slate-500 font-bold border-b pb-1">
+                      <span>TIKET #{idx + 1}</span>
+                      <span className="text-teal-700">{tkt.category}</span>
+                    </div>
+                    <div className="font-bold text-sm text-slate-900">{tkt.name}</div>
+                    
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${tkt.ticket_id}`} 
+                      alt="QR Code Tiket" 
+                      className="w-36 h-36 border p-1 rounded bg-white shadow-sm"
+                    />
+                    
+                    <div className="font-mono text-xs font-bold text-teal-700 tracking-wider bg-slate-100 px-3 py-1 rounded">
+                      {tkt.ticket_id}
+                    </div>
                   </div>
-                  <div className="font-bold text-sm text-slate-900">{tkt.name}</div>
-                  
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${tkt.ticket_id}`} 
-                    alt="QR Code Tiket" 
-                    className="w-36 h-36 border p-1 rounded bg-white shadow-sm"
-                  />
-                  
-                  <div className="font-mono text-xs font-bold text-teal-700 tracking-wider bg-slate-100 px-3 py-1 rounded">
-                    {tkt.ticket_id}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-4 bg-slate-800/80 rounded-xl border border-slate-700 text-center space-y-2">
+                <div className="text-emerald-400 text-xs font-bold">✓ Data Pendaftaran Tersimpan</div>
+                <p className="text-[11px] text-slate-400">
+                  Acara ini tidak memerlukan E-Tiket QR Code. Silakan tunjukkan nama/nomor WhatsApp Anda saat hadir di lokasi.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="pt-2 text-center">
@@ -513,7 +524,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                   <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Joshua Merian Limas" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className={`grid grid-cols-1 ${isEmailEnabled ? 'sm:grid-cols-2' : ''} gap-3`}>
                   <div>
                     <label className="block text-slate-300 mb-1 font-semibold">No. WhatsApp *</label>
                     <div className="relative flex items-center">
@@ -531,17 +542,21 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                     {phoneError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{phoneError}</p>}
                   </div>
 
-                  <div>
-                    <label className="block text-slate-300 mb-1 font-semibold">Email (Untuk Terima E-Tiket Otomatis)</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={handleEmailChange}
-                      placeholder="nama@email.com"
-                      className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
-                    />
-                    {emailError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{emailError}</p>}
-                  </div>
+                  {/* KOLOM EMAIL TAMPIL HANYA JIKA REQUIRE EMAIL = ON */}
+                  {isEmailEnabled && (
+                    <div>
+                      <label className="block text-slate-300 mb-1 font-semibold">Email (Untuk Terima Tiket Otomatis) *</label>
+                      <input
+                        required
+                        type="email"
+                        value={formData.email}
+                        onChange={handleEmailChange}
+                        placeholder="nama@email.com"
+                        className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                      />
+                      {emailError && <p className="text-rose-400 text-[10px] mt-1 font-medium">{emailError}</p>}
+                    </div>
+                  )}
                 </div>
 
                 {regType === 'INDIVIDUAL' && (
@@ -556,7 +571,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                 )}
               </div>
 
-              {/* RENDER FORM BUILDER (SUPPORT MODE B: SUB-QUOTA PER OPSI) */}
+              {/* RENDER PERTANYAAN FORM BUILDER */}
               {customFields.length > 0 && (
                 <div className="space-y-4 pt-3 border-t border-slate-700">
                   <h4 className="font-bold text-teal-400 text-xs uppercase tracking-wide">
@@ -573,7 +588,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                         <p className="text-[11px] text-slate-400 leading-normal">{field.placeholder}</p>
                       )}
 
-                      {/* TIPE TEKS SINGKAT */}
                       {field.field_type === 'text' && (
                         <input 
                           type="text"
@@ -585,7 +599,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                         />
                       )}
 
-                      {/* TIPE TANGGAL */}
                       {field.field_type === 'date' && (
                         <input 
                           type="date"
@@ -596,7 +609,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                         />
                       )}
 
-                      {/* TIPE PARAGRAF / TEXTAREA */}
                       {field.field_type === 'textarea' && (
                         <textarea 
                           rows={3}
@@ -608,7 +620,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                         ></textarea>
                       )}
 
-                      {/* TIPE PILIHAN GANDA (RADIO) DENGAN PENGECEKAN KUOTA SUB-SESI */}
                       {field.field_type === 'radio' && (
                         <div className="space-y-2 pt-1">
                           {(field.options || []).map((optItem, oIdx) => {
@@ -656,7 +667,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                         </div>
                       )}
 
-                      {/* TIPE DROPDOWN DENGAN PENGECEKAN KUOTA */}
                       {field.field_type === 'dropdown' && (
                         <select
                           required={field.is_required}
@@ -732,8 +742,8 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               )}
 
               <div className="pt-2">
-                <button type="submit" disabled={submitting || !!phoneError || !!emailError} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
-                  {submitting ? 'Proses Dapatkan E-Tiket...' : 'Konfirmasi & Terbitkan Tiket QR'}
+                <button type="submit" disabled={submitting || !!phoneError || (isEmailEnabled && !!emailError)} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
+                  {submitting ? 'Memproses Pendaftaran...' : 'Konfirmasi & Kirim Pendaftaran'}
                 </button>
               </div>
             </form>
@@ -791,6 +801,8 @@ export default function App() {
         checkedIn: e.checked_in || 0,
         status: e.status,
         allowFamily: e.allow_family ?? true,
+        enableQr: e.enable_qr ?? true,
+        requireEmail: e.require_email ?? true,
         banner: e.banner || 'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&q=80&w=1000',
         description: e.description
       }));
@@ -1241,11 +1253,11 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
   const [isEditUnlimited, setIsEditUnlimited] = useState(false);
   
   const [newEvent, setNewEvent] = useState({
-    name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, description: ''
+    name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, enableQr: true, requireEmail: true, description: ''
   });
 
   const [editEventData, setEditEventData] = useState({
-    id: '', name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, description: ''
+    id: '', name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, enableQr: true, requireEmail: true, description: ''
   });
 
   const handleCreateEvent = async (e) => {
@@ -1265,6 +1277,8 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       checked_in: 0,
       status: 'Aktif',
       allow_family: newEvent.allowFamily,
+      enable_qr: newEvent.enableQr,
+      require_email: newEvent.requireEmail,
       description: newEvent.description || 'Kegiatan Ibadah Resmi GII Holis Bandung.'
     };
 
@@ -1277,7 +1291,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
     } else {
       showToast('Acara berhasil disimpan!');
       setShowCreateModal(false);
-      setNewEvent({ name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, description: '' });
+      setNewEvent({ name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allowFamily: true, enableQr: true, requireEmail: true, description: '' });
       setIsUnlimited(false);
       fetchRealEvents();
     }
@@ -1293,6 +1307,8 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       venue: evt.venue,
       capacity: evt.capacity || 200,
       allowFamily: evt.allowFamily,
+      enableQr: evt.enableQr ?? true,
+      requireEmail: evt.requireEmail ?? true,
       description: evt.description || ''
     });
     setIsEditUnlimited(evt.capacity === null || evt.capacity === 0);
@@ -1311,6 +1327,8 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       venue: editEventData.venue,
       capacity: isEditUnlimited ? null : (parseInt(editEventData.capacity) || 100),
       allow_family: editEventData.allowFamily,
+      enable_qr: editEventData.enableQr,
+      require_email: editEventData.requireEmail,
       description: editEventData.description
     };
 
@@ -1396,7 +1414,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       console.error("Gagal ambil form fields:", error);
       setFormFields([]);
     } else {
-      // Normalisasi Opsi ke Struktur Objek { label, quota }
       const normalizedData = (data || []).map(field => {
         let parsedOpts = field.options || [];
         if (typeof parsedOpts === 'string') {
@@ -1574,7 +1591,8 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                       <div>📅 <strong>Tanggal:</strong> {evt.date}</div>
                       <div>⏰ <strong>Waktu:</strong> {evt.time}</div>
                       <div className="sm:col-span-2">📍 <strong>Lokasi:</strong> {evt.venue}</div>
-                      <div className="sm:col-span-2">👨‍👩‍👧‍👦 <strong>Tipe:</strong> {evt.allowFamily ? 'Individu & Keluarga' : 'Hanya Individu'}</div>
+                      <div>👨‍👩‍👧‍👦 <strong>Tipe:</strong> {evt.allowFamily ? 'Rombongan' : 'Individu'}</div>
+                      <div>🎟️ <strong>E-Tiket:</strong> {evt.enableQr ? 'QR Code' : 'Tanpa QR'}</div>
                     </div>
                   </div>
                 </div>
@@ -1632,7 +1650,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
         </div>
       )}
 
-      {/* MODAL FORM BUILDER DENGAN SETTING KUOTA OPTION (MODE B) */}
+      {/* MODAL FORM BUILDER DENGAN PANDUAN BAWAAN & SETTING KUOTA OPTION */}
       {showFormBuilderModal && selectedEventForBuilder && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 my-8 flex flex-col max-h-[90vh]">
@@ -1655,18 +1673,30 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                 </div>
               ) : (
                 <>
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-xs space-y-1">
-                    <div className="font-bold text-slate-800">📌 Panduan Pengisian Kuota Opsi:</div>
-                    <p className="text-slate-500 leading-relaxed">
-                      • <strong>Mode A (Kuota Tunggal):</strong> Kosongkan kolom kuota opsi. Acara akan dibatasi oleh Kuota Utamanya.<br/>
-                      • <strong>Mode B (Multi-Sesi / Sub-Kuota):</strong> Isi angka pada kolom <em>Quota Limit</em> di samping tiap opsi (contoh: 600 untuk Kebaktian 1, 700 untuk Kebaktian 2).
-                    </p>
+                  {/* PANDUAN DENGAN INFO INPUTAN OTOMATIS */}
+                  <div className="bg-white p-4 rounded-xl border border-indigo-200 shadow-sm text-xs space-y-2">
+                    <div className="font-bold text-indigo-900 flex items-center gap-1.5">
+                      <span>📌 Panduan Pembuatan Form:</span>
+                    </div>
+                    
+                    <div className="p-2.5 bg-teal-50 border border-teal-200 rounded-lg text-[11px] text-teal-800 space-y-1">
+                      <div className="font-bold text-teal-900">⚡ Inputan Otomatis (Sudah Ada di Sistem):</div>
+                      <p>
+                        Field <strong>Nama Lengkap</strong>, <strong>No. WhatsApp</strong>, dan <strong>Email</strong> (jika aktif) <span className="font-semibold text-teal-900">sudah otomatis ter-generate oleh sistem</span> di bagian atas form pendaftaran jemaat. Anda <u>TIDAK PERLU</u> membuat pertanyaan Nama / No. WA lagi di sini.
+                      </p>
+                    </div>
+
+                    <div className="text-slate-600 leading-relaxed text-[11px] space-y-1 pt-1">
+                      <div className="font-bold text-slate-800">💡 Pengaturan Batas Kuota:</div>
+                      <div>• <strong>Mode A (Kuota Tunggal):</strong> Kosongkan kolom kuota opsi. Pendaftaran dibatasi Kuota Utama acara.</div>
+                      <div>• <strong>Mode B (Multi-Sesi / Sub-Kuota):</strong> Isi angka kuota pada kolom <em>Quota</em> di samping opsi (contoh: Kebaktian 1 = 600, Kebaktian 2 = 700).</div>
+                    </div>
                   </div>
 
                   {formFields.length === 0 ? (
                     <div className="p-8 bg-white rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500 space-y-2">
                       <p className="font-semibold text-slate-700">Belum ada pertanyaan kustom tambahan.</p>
-                      <p>Klik "+ Tambah Pertanyaan" di bawah untuk membuat pilihan seperti Sesi Ibadah, Ukuran Kaos, Tanggal Lahir, dll.</p>
+                      <p>Klik "+ Tambah Pertanyaan Baru" di bawah untuk membuat pilihan seperti Sesi Ibadah, Ukuran Kaos, Tanggal Lahir, dll.</p>
                     </div>
                   ) : (
                     formFields.map((field, idx) => (
@@ -1809,7 +1839,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
         </div>
       )}
 
-      {/* MODAL BUAT ACARA BARU */}
+      {/* MODAL BUAT ACARA BARU (DENGAN SAKELAR QR & EMAIL) */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 my-8">
@@ -1876,12 +1906,27 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Kata-kata Pengantar / Deskripsi Acara</label>
-                <textarea rows={4} value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})} placeholder="Masukkan kata-kata pengantar panjang, ayat Alkitab, atau pengumuman..." className="w-full p-2.5 border rounded-lg border-slate-300 font-sans"></textarea>
+                <textarea rows={3} value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})} placeholder="Masukkan kata-kata pengantar panjang, ayat Alkitab, atau pengumuman..." className="w-full p-2.5 border rounded-lg border-slate-300 font-sans"></textarea>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <input type="checkbox" id="familyOpt" checked={newEvent.allowFamily} onChange={e => setNewEvent({...newEvent, allowFamily: e.target.checked})} />
-                <label htmlFor="familyOpt" className="font-semibold text-slate-700">Izinkan Pendaftaran Keluarga / Rombongan</label>
+              {/* SAKELAR FITUR ACARA */}
+              <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase">Pengaturan Fitur Acara:</label>
+
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">🎟️ Terbitkan E-Tiket & QR Code</span>
+                  <input type="checkbox" checked={newEvent.enableQr} onChange={e => setNewEvent({...newEvent, enableQr: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">✉️ Minta Email & Kirim Otomatis</span>
+                  <input type="checkbox" checked={newEvent.requireEmail} onChange={e => setNewEvent({...newEvent, requireEmail: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">👨‍👩‍👧‍👦 Izinkan Pendaftaran Keluarga / Rombongan</span>
+                  <input type="checkbox" checked={newEvent.allowFamily} onChange={e => setNewEvent({...newEvent, allowFamily: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t">
@@ -1962,12 +2007,27 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Kata-kata Pengantar / Deskripsi Acara</label>
-                <textarea rows={4} value={editEventData.description} onChange={e => setEditEventData({...editEventData, description: e.target.value})} placeholder="Masukkan kata-kata pengantar panjang, ayat Alkitab, atau pengumuman..." className="w-full p-2.5 border rounded-lg border-slate-300 font-sans"></textarea>
+                <textarea rows={3} value={editEventData.description} onChange={e => setEditEventData({...editEventData, description: e.target.value})} placeholder="Masukkan kata-kata pengantar panjang, ayat Alkitab, atau pengumuman..." className="w-full p-2.5 border rounded-lg border-slate-300 font-sans"></textarea>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <input type="checkbox" id="editFamilyOpt" checked={editEventData.allowFamily} onChange={e => setEditEventData({...editEventData, allowFamily: e.target.checked})} />
-                <label htmlFor="editFamilyOpt" className="font-semibold text-slate-700">Izinkan Pendaftaran Keluarga / Rombongan</label>
+              {/* SAKELAR FITUR ACARA EDIT */}
+              <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase">Pengaturan Fitur Acara:</label>
+
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">🎟️ Terbitkan E-Tiket & QR Code</span>
+                  <input type="checkbox" checked={editEventData.enableQr} onChange={e => setEditEventData({...editEventData, enableQr: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">✉️ Minta Email & Kirim Otomatis</span>
+                  <input type="checkbox" checked={editEventData.requireEmail} onChange={e => setEditEventData({...editEventData, requireEmail: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">👨‍👩‍👧‍👦 Izinkan Pendaftaran Keluarga / Rombongan</span>
+                  <input type="checkbox" checked={editEventData.allowFamily} onChange={e => setEditEventData({...editEventData, allowFamily: e.target.checked})} className="w-4 h-4 text-teal-600 rounded" />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t">
@@ -2432,7 +2492,7 @@ function RegistrationsModule({ events, showToast }) {
 
               <div className="space-y-2">
                 <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  Daftar Tiket QR Terbit ({reg.registration_members?.length || 0} Tiket)
+                  Daftar Tiket Terbit ({reg.registration_members?.length || 0} Porsi)
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {reg.registration_members?.map(mem => (
