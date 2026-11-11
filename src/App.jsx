@@ -5,7 +5,7 @@ import {
   Download, Upload, CheckCircle, Copy, UserPlus, 
   FileText, Sparkles, Camera, ArrowRight, Lock, Check,
   Share2, AlertTriangle, LogOut, Menu, X, RefreshCw, Ticket, ChevronRight,
-  Edit, Trash2, RotateCcw
+  Edit, Trash2, RotateCcw, Sliders, ToggleLeft, ToggleRight, ListPlus
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -122,10 +122,12 @@ function Login({ onLoginSuccess }) {
 }
 
 // ==========================================
-// COMPONENT: PUBLIC FORM REGISTRATION (JEMAAT)
+// COMPONENT: PUBLIC FORM REGISTRATION (DYNAMIC FORM BUILDER SUPPORT)
 // ==========================================
 function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const [eventData, setEventData] = useState(null);
+  const [customFields, setCustomFields] = useState([]);
+  const [customAnswers, setCustomAnswers] = useState({});
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [successRegistration, setSuccessRegistration] = useState(null);
@@ -138,7 +140,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     name: '',
     whatsapp: '',
     email: '',
-    sessionTime: 'Kebaktian 1 | 07.30 WIB Acara Peresmian',
     category: 'Dewasa',
     notes: ''
   });
@@ -146,24 +147,38 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   const [members, setMembers] = useState([]);
 
   useEffect(() => {
-    const fetchEvent = async () => {
+    const fetchEventAndFields = async () => {
       setLoadingEvent(true);
-      const { data } = await supabase
+      
+      // 1. Fetch Event
+      const { data: event } = await supabase
         .from('events')
         .select('*')
         .eq('id', eventId)
         .single();
 
-      if (data) {
-        setEventData(data);
-        if (!data.allow_family) {
+      if (event) {
+        setEventData(event);
+        if (!event.allow_family) {
           setRegType('INDIVIDUAL');
         }
       }
+
+      // 2. Fetch Custom Fields dari Dynamic Form Builder
+      const { data: fields } = await supabase
+        .from('event_form_fields')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('order_index', { ascending: true });
+
+      if (fields) {
+        setCustomFields(fields);
+      }
+
       setLoadingEvent(false);
     };
 
-    if (eventId) fetchEvent();
+    if (eventId) fetchEventAndFields();
   }, [eventId]);
 
   const handlePhoneChange = (e) => {
@@ -197,6 +212,10 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     }
   };
 
+  const handleCustomAnswerChange = (fieldId, value) => {
+    setCustomAnswers(prev => ({ ...prev, [fieldId]: value }));
+  };
+
   const handleAddMember = () => {
     setMembers([...members, { name: '', category: 'Dewasa' }]);
   };
@@ -218,22 +237,26 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
+    // Validasi Custom Fields Wajib
+    for (const field of customFields) {
+      if (field.is_required && !customAnswers[field.id]) {
+        alert(`Mohon isi pertanyaan wajib: "${field.label}"`);
+        return;
+      }
+    }
+
     setSubmitting(true);
     const fullFormattedPhone = `+62${formData.whatsapp}`;
     const cleanInputName = formData.name.trim();
 
     // VALIDASI KOMBINASI DUPLIKAT
-    const { data: duplicateCheck, error: dupError } = await supabase
+    const { data: duplicateCheck } = await supabase
       .from('registrations')
       .select('id, name, whatsapp')
       .eq('event_id', eventId)
       .eq('whatsapp', fullFormattedPhone)
       .ilike('name', cleanInputName)
       .maybeSingle();
-
-    if (dupError) {
-      console.error("Error checking duplicate registration:", dupError);
-    }
 
     if (duplicateCheck) {
       alert(`⚠️ Pendaftaran Ditolak:\n\nNama "${cleanInputName}" dengan Nomor WhatsApp (${fullFormattedPhone}) sudah pernah terdaftar pada acara ini.\n\nJika nama peserta beda (misal: anggota keluarga), silakan ubah nama peserta.`);
@@ -242,7 +265,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     }
 
     const regId = `REG-${Date.now()}`;
-    const combinedNotes = `[Sesi: ${formData.sessionTime}] ${formData.notes || ''}`.trim();
 
     const { error: regError } = await supabase.from('registrations').insert([{
       id: regId,
@@ -250,13 +272,24 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       name: cleanInputName,
       whatsapp: fullFormattedPhone,
       email: formData.email,
-      notes: combinedNotes
+      notes: formData.notes || ''
     }]);
 
     if (regError) {
       alert(`Gagal mendaftar: ${regError.message}`);
       setSubmitting(false);
       return;
+    }
+
+    // SIMPAN JAWABAN CUSTOM FIELDS KE DATABASE
+    const answerPayloads = Object.keys(customAnswers).map(fieldId => ({
+      registration_id: regId,
+      field_id: fieldId,
+      answer_value: String(customAnswers[fieldId])
+    }));
+
+    if (answerPayloads.length > 0) {
+      await supabase.from('registration_answers').insert(answerPayloads);
     }
 
     let memberPayloads = [
@@ -300,7 +333,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
         toEmail: formData.email,
         name: cleanInputName,
         tickets: memberPayloads,
-        eventName: `${eventData.name} (${formData.sessionTime})`,
+        eventName: eventData.name,
         eventDate: eventData.date,
         eventVenue: eventData.venue
       });
@@ -346,9 +379,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             <h2 className="font-bold text-lg text-emerald-400">Pendaftaran Berhasil!</h2>
             <p className="text-xs text-slate-400">Total {successRegistration.tickets.length} E-Tiket resmi terbit untuk kegiatan:</p>
             <h3 className="font-bold text-sm text-white bg-slate-800 p-2 rounded-lg border border-slate-700">{successRegistration.event.name}</h3>
-            <p className="text-xs text-teal-300 font-semibold bg-teal-950/80 p-2 rounded border border-teal-800/60">
-              📌 {formData.sessionTime}
-            </p>
             {formData.email && (
               <div className="p-2 bg-teal-500/10 border border-teal-500/30 rounded-lg text-[11px] text-teal-300 font-medium">
                 📧 E-Tiket otomatis dikirimkan ke email <strong>{formData.email}</strong>
@@ -358,7 +388,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
           <div className="space-y-4">
             <div className="text-xs text-slate-400 space-y-1 bg-slate-950 p-3 rounded-lg border border-slate-800">
-              <div>👤 <strong>Penanggung Jawab:</strong> {successRegistration.mainContact.name} ({successRegistration.mainContact.whatsapp})</div>
+              <div>👤 <strong>Nama Utama:</strong> {successRegistration.mainContact.name} ({successRegistration.mainContact.whatsapp})</div>
               <div>📅 <strong>Tanggal:</strong> {successRegistration.event.date}</div>
               <div>📍 <strong>Lokasi:</strong> {successRegistration.event.venue}</div>
             </div>
@@ -368,7 +398,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
               {successRegistration.tickets.map((tkt, idx) => (
                 <div key={tkt.id} className="bg-white text-slate-900 p-4 rounded-xl shadow border border-slate-200 flex flex-col items-center text-center space-y-2">
                   <div className="w-full flex justify-between items-center text-[10px] text-slate-500 font-bold border-b pb-1">
-                    <span>TIKET #{idx + 1} {idx === 0 ? '(Penanggung Jawab)' : ''}</span>
+                    <span>TIKET #{idx + 1}</span>
                     <span className="text-teal-700">{tkt.category}</span>
                   </div>
                   <div className="font-bold text-sm text-slate-900">{tkt.name}</div>
@@ -382,7 +412,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                   <div className="font-mono text-xs font-bold text-teal-700 tracking-wider bg-slate-100 px-3 py-1 rounded">
                     {tkt.ticket_id}
                   </div>
-                  <p className="text-[10px] text-slate-400">Tunjukkan QR ini atau cek inbox email Anda saat masuk</p>
                 </div>
               ))}
             </div>
@@ -402,14 +431,12 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     <div className="min-h-screen bg-slate-900 p-4 md:p-8 flex flex-col items-center justify-center">
       <div className="max-w-xl w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-2xl text-white space-y-6">
         
-        {/* HEADER & KATA-KATA PENGANTAR FLEKSIBEL (OTOMATIS DARI SUPABASE DATABASE) */}
         <div className="border-b border-slate-700 pb-4 space-y-3">
           <span className="bg-teal-500/20 text-teal-400 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-teal-500/30">
             Form Pendaftaran Jemaat
           </span>
           <h2 className="font-bold text-lg md:text-xl text-white mt-1">{eventData.name}</h2>
 
-          {/* DRAFT PENGANTAR OTOMATIS BERDASARKAN EVENT.DESCRIPTION */}
           {eventData.description && (
             <div className="text-xs text-slate-300 bg-slate-950/70 p-4 rounded-xl border border-slate-800 leading-relaxed whitespace-pre-line font-normal space-y-2">
               {eventData.description}
@@ -449,49 +476,13 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
         <form onSubmit={handleSubmit} className="space-y-5 text-xs">
           
-          {/* PILIHAN JADWAL KEBAKTIAN (RADIO BUTTON) */}
-          <div className="space-y-2 bg-slate-950/80 p-4 rounded-xl border border-slate-700">
-            <label className="block text-teal-400 font-bold text-xs uppercase tracking-wide">
-              Mendaftar Ibadah Peresmian / Sesi Kebaktian: *
-            </label>
-            <div className="space-y-2 pt-1">
-              <label className="flex items-center gap-3 p-3 bg-slate-900 border border-slate-700 rounded-lg cursor-pointer hover:border-teal-500 transition">
-                <input 
-                  type="radio" 
-                  name="sessionTime" 
-                  value="Kebaktian 1 | 07.30 WIB Acara Peresmian"
-                  checked={formData.sessionTime === 'Kebaktian 1 | 07.30 WIB Acara Peresmian'}
-                  onChange={e => setFormData({...formData, sessionTime: e.target.value})}
-                  className="w-4 h-4 text-teal-500 focus:ring-teal-500"
-                />
-                <span className="font-semibold text-slate-200 text-xs">
-                  Kebaktian 1 | 07.30 WIB Acara Peresmian
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3 p-3 bg-slate-900 border border-slate-700 rounded-lg cursor-pointer hover:border-teal-500 transition">
-                <input 
-                  type="radio" 
-                  name="sessionTime" 
-                  value="Kebaktian 2 | 10.00 WIB Replay Video Acara Peresmian"
-                  checked={formData.sessionTime === 'Kebaktian 2 | 10.00 WIB Replay Video Acara Peresmian'}
-                  onChange={e => setFormData({...formData, sessionTime: e.target.value})}
-                  className="w-4 h-4 text-teal-500 focus:ring-teal-500"
-                />
-                <span className="font-semibold text-slate-200 text-xs">
-                  Kebaktian 2 | 10.00 WIB Replay Video Acara Peresmian
-                </span>
-              </label>
-            </div>
-          </div>
-
           <div className="space-y-3">
             <h4 className="font-bold text-teal-400 text-xs">
-              {regType === 'INDIVIDUAL' ? 'Informasi Data Peserta' : '1. Informasi Kontak Penanggung Jawab'}
+              {regType === 'INDIVIDUAL' ? 'Informasi Data Peserta' : '1. Informasi Kontak Utama'}
             </h4>
             
             <div>
-              <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap Penanggung Jawab *</label>
+              <label className="block text-slate-300 mb-1 font-semibold">Nama Lengkap *</label>
               <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Joshua Merian Limas" className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500" />
             </div>
 
@@ -538,12 +529,102 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             )}
           </div>
 
+          {/* RENDER PERTANYAAN DINAMIS DARI FORM BUILDER (ALA GOOGLE FORM) */}
+          {customFields.length > 0 && (
+            <div className="space-y-4 pt-3 border-t border-slate-700">
+              <h4 className="font-bold text-teal-400 text-xs uppercase tracking-wide">
+                Informasi Tambahan Acara
+              </h4>
+
+              {customFields.map(field => (
+                <div key={field.id} className="bg-slate-950/70 p-4 rounded-xl border border-slate-700 space-y-2">
+                  <label className="block text-slate-200 font-semibold text-xs">
+                    {field.label} {field.is_required && <span className="text-rose-400">*</span>}
+                  </label>
+
+                  {field.placeholder && (
+                    <p className="text-[11px] text-slate-400 leading-normal">{field.placeholder}</p>
+                  )}
+
+                  {/* TIPE TEKS SINGKAT */}
+                  {field.field_type === 'text' && (
+                    <input 
+                      type="text"
+                      required={field.is_required}
+                      value={customAnswers[field.id] || ''}
+                      onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                      placeholder="Ketik jawaban Anda..."
+                      className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                    />
+                  )}
+
+                  {/* TIPE TANGGAL */}
+                  {field.field_type === 'date' && (
+                    <input 
+                      type="date"
+                      required={field.is_required}
+                      value={customAnswers[field.id] || ''}
+                      onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                      className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                    />
+                  )}
+
+                  {/* TIPE PARAGRAF / TEXTAREA */}
+                  {field.field_type === 'textarea' && (
+                    <textarea 
+                      rows={3}
+                      required={field.is_required}
+                      value={customAnswers[field.id] || ''}
+                      onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                      placeholder="Ketik jawaban penjelasan..."
+                      className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                    ></textarea>
+                  )}
+
+                  {/* TIPE PILIHAN GANDA / RADIO */}
+                  {field.field_type === 'radio' && (
+                    <div className="space-y-2 pt-1">
+                      {(field.options || []).map((opt, oIdx) => (
+                        <label key={oIdx} className="flex items-center gap-3 p-2.5 bg-slate-900 border border-slate-700 rounded-lg cursor-pointer hover:border-teal-500 transition">
+                          <input 
+                            type="radio"
+                            name={`field_${field.id}`}
+                            value={opt}
+                            checked={customAnswers[field.id] === opt}
+                            onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                            className="w-4 h-4 text-teal-500 focus:ring-teal-500"
+                          />
+                          <span className="text-slate-200 text-xs font-medium">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* TIPE DROPDOWN */}
+                  {field.field_type === 'dropdown' && (
+                    <select
+                      required={field.is_required}
+                      value={customAnswers[field.id] || ''}
+                      onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
+                      className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
+                    >
+                      <option value="">-- Pilih Salah Satu --</option>
+                      {(field.options || []).map((opt, oIdx) => (
+                        <option key={oIdx} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {regType === 'GROUP' && (
             <div className="space-y-3 pt-3 border-t border-slate-700">
               <div className="flex justify-between items-center">
                 <div>
                   <h4 className="font-bold text-teal-400 text-xs">2. Anggota Tambahan yang Diikutkan</h4>
-                  <p className="text-[10px] text-slate-400">Penanggung Jawab otomatis terhitung dapat 1 Tiket.</p>
+                  <p className="text-[10px] text-slate-400">Pendaftar Utama otomatis terhitung mendapat 1 Tiket.</p>
                 </div>
                 <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
                   <Plus size={14} /> Tambah Anggota
@@ -613,14 +694,9 @@ export default function App() {
 
   const [publicEventId, setPublicEventId] = useState(null);
   
-  const [branding, setBranding] = useState({
+  const [branding] = useState({
     orgName: 'Gereja Injili Indonesia Holis (GII Holis)',
     appName: 'Sistem Tiket GII Holis',
-    logoUrl: '',
-    primaryColor: '#1e3a8a',
-    accentColor: '#0d9488',
-    senderEmail: 'tiket@gii-holis-tickets.web.id',
-    senderName: 'Panitia Acara GII Holis'
   });
 
   const [currentRole, setCurrentRole] = useState('CHECKIN_STAFF');
@@ -1082,11 +1158,17 @@ function MetricCard({ title, value, icon, subtext, bg }) {
 }
 
 // ==========================================
-// MODULE 2: EVENT MANAGEMENT (DENGAN FLUSH & EDIT & DELETE)
+// MODULE 2: EVENT MANAGEMENT & DYNAMIC FORM BUILDER (ALA GOOGLE FORM)
 // ==========================================
 function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPublicEventId }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showFormBuilderModal, setShowFormBuilderModal] = useState(false);
+  
+  const [selectedEventForBuilder, setSelectedEventForBuilder] = useState(null);
+  const [formFields, setFormFields] = useState([]);
+  const [loadingFields, setLoadingFields] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [isEditUnlimited, setIsEditUnlimited] = useState(false);
@@ -1134,7 +1216,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
     }
   };
 
-  // OPEN EDIT MODAL
   const handleOpenEdit = (evt) => {
     setEditEventData({
       id: evt.id,
@@ -1151,7 +1232,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
     setShowEditModal(true);
   };
 
-  // UPDATE EVENT
   const handleUpdateEvent = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -1180,7 +1260,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
     }
   };
 
-  // FLUSH PENDAFTAR (RESET KUOTA TERISI JADI 0 & HAPUS SELURUH PENDAFTAR ACARA INI)
   const handleResetRegistrants = async (eventId, eventName) => {
     if (!window.confirm(`⚠️ KONFIRMASI RESET PENDAFTAR:\n\nApakah Anda yakin ingin menghapus SELURUH pendaftar & E-Tiket untuk acara "${eventName}"?\n\nAngka kuota pendaftar akan kembali menjadi 0. Acara tidak akan dihapus.`)) {
       return;
@@ -1188,7 +1267,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 
     setSaving(true);
 
-    // 1. Hapus pendaftaran di tabel registrations
     const { error: deleteError } = await supabase
       .from('registrations')
       .delete()
@@ -1200,7 +1278,6 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       return;
     }
 
-    // 2. Reset hitungan registered & checked_in di tabel events menjadi 0
     const { error: resetError } = await supabase
       .from('events')
       .update({ registered: 0, checked_in: 0 })
@@ -1216,18 +1293,15 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
     }
   };
 
-  // HAPUS ACARA PERMANEN BESERTA PENDAFTARNYA
   const handleDeleteEvent = async (eventId, eventName) => {
-    if (!window.confirm(`🚨 PERHATIAN PENUH HAPUS ACARA:\n\nApakah Anda yakin ingin menghapus ACARA "${eventName}" secar permanen?\n\nSemua pendaftar, E-Tiket, dan histori acara ini akan HILANG dari database!`)) {
+    if (!window.confirm(`🚨 PERHATIAN PENUH HAPUS ACARA:\n\nApakah Anda yakin ingin menghapus ACARA "${eventName}" secara permanen?\n\nSemua pendaftar, E-Tiket, dan histori acara ini akan HILANG dari database!`)) {
       return;
     }
 
     setSaving(true);
 
-    // 1. Hapus pendaftaran di registrations
     await supabase.from('registrations').delete().eq('event_id', eventId);
 
-    // 2. Hapus event dari tabel events
     const { error } = await supabase.from('events').delete().eq('id', eventId);
 
     setSaving(false);
@@ -1238,6 +1312,102 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       showToast(`Acara "${eventName}" berhasil dihapus permanen!`);
       fetchRealEvents();
     }
+  };
+
+  // ==========================================
+  // DYNAMIC FORM BUILDER HANDLERS (EDITOR ALA GOOGLE FORM)
+  // ==========================================
+  const handleOpenFormBuilder = async (evt) => {
+    setSelectedEventForBuilder(evt);
+    setLoadingFields(true);
+    setShowFormBuilderModal(true);
+
+    const { data, error } = await supabase
+      .from('event_form_fields')
+      .select('*')
+      .eq('event_id', evt.id)
+      .order('order_index', { ascending: true });
+
+    if (error) {
+      console.error("Gagal ambil form fields:", error);
+      setFormFields([]);
+    } else {
+      setFormFields(data || []);
+    }
+    setLoadingFields(false);
+  };
+
+  const handleAddField = () => {
+    const newField = {
+      id: `temp_${Date.now()}`,
+      event_id: selectedEventForBuilder.id,
+      label: 'Pertanyaan Tanpa Judul',
+      field_type: 'text',
+      options: ['Opsi 1', 'Opsi 2'],
+      placeholder: '',
+      is_required: false,
+      order_index: formFields.length + 1,
+      isNew: true
+    };
+    setFormFields([...formFields, newField]);
+  };
+
+  const handleUpdateFieldLocal = (index, key, val) => {
+    const updated = [...formFields];
+    updated[index][key] = val;
+    setFormFields(updated);
+  };
+
+  const handleAddOptionLocal = (fieldIndex) => {
+    const updated = [...formFields];
+    const currentOpts = updated[fieldIndex].options || [];
+    updated[fieldIndex].options = [...currentOpts, `Opsi ${currentOpts.length + 1}`];
+    setFormFields(updated);
+  };
+
+  const handleRemoveOptionLocal = (fieldIndex, optIndex) => {
+    const updated = [...formFields];
+    updated[fieldIndex].options = updated[fieldIndex].options.filter((_, i) => i !== optIndex);
+    setFormFields(updated);
+  };
+
+  const handleRemoveFieldLocal = async (field, index) => {
+    if (!field.isNew) {
+      const { error } = await supabase.from('event_form_fields').delete().eq('id', field.id);
+      if (error) {
+        showToast(`Gagal menghapus pertanyaan: ${error.message}`, 'error');
+        return;
+      }
+    }
+    setFormFields(formFields.filter((_, i) => i !== index));
+  };
+
+  const handleSaveFormFields = async () => {
+    setSaving(true);
+
+    // Filter & payload
+    for (let i = 0; i < formFields.length; i++) {
+      const f = formFields[i];
+      const payload = {
+        event_id: selectedEventForBuilder.id,
+        label: f.label || 'Pertanyaan Tanpa Judul',
+        field_type: f.field_type,
+        options: f.options || [],
+        placeholder: f.placeholder || '',
+        is_required: f.is_required || false,
+        order_index: i + 1
+      };
+
+      if (f.isNew || String(f.id).startsWith('temp_')) {
+        await supabase.from('event_form_fields').insert([payload]);
+      } else {
+        await supabase.from('event_form_fields').update(payload).eq('id', f.id);
+      }
+    }
+
+    setSaving(false);
+    showToast(`Formulir dinamis untuk "${selectedEventForBuilder.name}" berhasil disimpan!`);
+    setShowFormBuilderModal(false);
   };
 
   return (
@@ -1325,6 +1495,14 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                     </div>
                     
                     <div className="flex items-center gap-1.5 flex-wrap">
+                      <button 
+                        onClick={() => handleOpenFormBuilder(evt)} 
+                        className="p-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-indigo-200"
+                        title="Desain Pertanyaan Form ala Google Form"
+                      >
+                        <ListPlus size={14} /> Form Builder
+                      </button>
+
                       <button onClick={() => {
                         window.location.hash = `#/register/${evt.id}`;
                       }} className="p-2 bg-teal-50 text-teal-700 hover:bg-teal-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-teal-200">
@@ -1343,7 +1521,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                         className="p-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-amber-200"
                         title="Reset/Flush Kuota Pendaftar ke 0"
                       >
-                        <RotateCcw size={14} /> Flush (Reset)
+                        <RotateCcw size={14} /> Flush
                       </button>
 
                       <button 
@@ -1359,6 +1537,177 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* MODAL EDITOR ALA GOOGLE FORM (DYNAMIC FORM BUILDER) */}
+      {showFormBuilderModal && selectedEventForBuilder && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 my-8 flex flex-col max-h-[90vh]">
+            
+            {/* EDITOR HEADER */}
+            <div className="px-6 py-4 bg-indigo-900 text-white flex justify-between items-center shrink-0">
+              <div>
+                <span className="text-[10px] bg-indigo-700 text-indigo-100 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  Editor Formulir Dinamis
+                </span>
+                <h3 className="font-bold text-sm text-white mt-1">Form Builder: {selectedEventForBuilder.name}</h3>
+              </div>
+              <button onClick={() => setShowFormBuilderModal(false)} className="text-slate-300 hover:text-white p-1">✕</button>
+            </div>
+
+            {/* EDITOR BODY (QUESTION LIST) */}
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {loadingFields ? (
+                <div className="text-center py-8 text-xs text-slate-500">
+                  <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  Memuat struktur pertanyaan...
+                </div>
+              ) : (
+                <>
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-xs space-y-1">
+                    <div className="font-bold text-slate-800">📌 Pertanyaan Utama Bawaan (Default)</div>
+                    <p className="text-slate-500">
+                      <strong>Nama Lengkap</strong>, <strong>No. WhatsApp</strong>, dan <strong>Email</strong> otomatis selalu ada di paling atas sebagai syarat tiket QR. Tambahkan pertanyaan kustom di bawah ini:
+                    </p>
+                  </div>
+
+                  {formFields.length === 0 ? (
+                    <div className="p-8 bg-white rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500 space-y-2">
+                      <p className="font-semibold text-slate-700">Belum ada pertanyaan kustom tambahan.</p>
+                      <p>Klik "+ Tambah Pertanyaan" di bawah untuk membuat pilihan seperti Sesi Ibadah, Ukuran Kaos, Tanggal Lahir, dll.</p>
+                    </div>
+                  ) : (
+                    formFields.map((field, idx) => (
+                      <div key={field.id} className="bg-white p-5 rounded-xl border border-indigo-200 shadow-sm space-y-4 relative border-l-4 border-l-indigo-600">
+                        <div className="flex flex-col sm:flex-row gap-3 items-start justify-between">
+                          <input 
+                            type="text" 
+                            value={field.label}
+                            onChange={e => handleUpdateFieldLocal(idx, 'label', e.target.value)}
+                            placeholder="Ketik Pertanyaan (Contoh: Mendaftar Ibadah Peresmian / Sesi Kebaktian)"
+                            className="w-full sm:flex-1 p-2.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-indigo-500"
+                          />
+
+                          <select 
+                            value={field.field_type}
+                            onChange={e => handleUpdateFieldLocal(idx, 'field_type', e.target.value)}
+                            className="w-full sm:w-48 p-2.5 border border-slate-300 rounded-lg text-xs font-semibold bg-slate-50"
+                          >
+                            <option value="text">Teks Singkat</option>
+                            <option value="textarea">Paragraf / Penjelasan</option>
+                            <option value="radio">Pilihan Ganda (Radio)</option>
+                            <option value="dropdown">Dropdown Pilihan</option>
+                            <option value="date">Tanggal</option>
+                          </select>
+                        </div>
+
+                        {/* INPUT SUBTEXT / PLACEHOLDER */}
+                        <div>
+                          <input 
+                            type="text"
+                            value={field.placeholder || ''}
+                            onChange={e => handleUpdateFieldLocal(idx, 'placeholder', e.target.value)}
+                            placeholder="Teks keterangan/panduan di bawah pertanyaan (Opsional)"
+                            className="w-full p-2 border border-slate-200 rounded text-[11px] text-slate-600"
+                          />
+                        </div>
+
+                        {/* EDIT DAFTAR OPSI (JIKA RADIO ATAU DROPDOWN) */}
+                        {['radio', 'dropdown'].includes(field.field_type) && (
+                          <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                            <label className="block text-[11px] font-bold text-slate-600 uppercase">Daftar Pilihan Opsi Jawaban:</label>
+                            
+                            {(field.options || []).map((opt, oIdx) => (
+                              <div key={oIdx} className="flex items-center gap-2">
+                                <span className="text-slate-400 text-xs">⚪</span>
+                                <input 
+                                  type="text" 
+                                  value={opt}
+                                  onChange={e => {
+                                    const updatedOpts = [...field.options];
+                                    updatedOpts[oIdx] = e.target.value;
+                                    handleUpdateFieldLocal(idx, 'options', updatedOpts);
+                                  }}
+                                  placeholder={`Opsi ${oIdx + 1}`}
+                                  className="flex-1 p-2 border border-slate-300 rounded bg-white text-xs font-medium"
+                                />
+                                {(field.options || []).length > 1 && (
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleRemoveOptionLocal(idx, oIdx)}
+                                    className="text-rose-500 hover:text-rose-700 p-1 text-xs"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+
+                            <button 
+                              type="button"
+                              onClick={() => handleAddOptionLocal(idx)}
+                              className="text-indigo-600 hover:text-indigo-800 text-xs font-bold pt-1 flex items-center gap-1"
+                            >
+                              + Tambah Opsi Jawaban
+                            </button>
+                          </div>
+                        )}
+
+                        {/* BOTTOM ACTIONS (REQUIRED & DELETE) */}
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={field.is_required || false}
+                              onChange={e => handleUpdateFieldLocal(idx, 'is_required', e.target.checked)}
+                              className="w-4 h-4 text-indigo-600 rounded"
+                            />
+                            <span className="font-semibold text-slate-700">Wajib Diisi (Required)</span>
+                          </label>
+
+                          <button 
+                            type="button"
+                            onClick={() => handleRemoveFieldLocal(field, idx)}
+                            className="text-rose-600 hover:bg-rose-50 p-2 rounded-lg text-xs font-bold flex items-center gap-1"
+                          >
+                            <Trash2 size={14} /> Hapus Pertanyaan
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  <button 
+                    type="button" 
+                    onClick={handleAddField}
+                    className="w-full py-3 border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-indigo-50/50 hover:bg-indigo-50 text-indigo-700 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition"
+                  >
+                    <Plus size={16} /> Tambah Pertanyaan Baru
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* EDITOR FOOTER */}
+            <div className="px-6 py-4 bg-white border-t border-slate-200 flex justify-end gap-2 shrink-0">
+              <button 
+                type="button" 
+                onClick={() => setShowFormBuilderModal(false)}
+                className="px-4 py-2 border rounded-lg text-xs text-slate-600 font-semibold"
+              >
+                Batal
+              </button>
+              <button 
+                type="button"
+                disabled={saving}
+                onClick={handleSaveFormFields}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-md transition disabled:opacity-50"
+              >
+                {saving ? 'Menyimpan Form...' : 'Simpan Perubahan Formulir'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1829,7 +2178,7 @@ function RegistrationsModule({ events, showToast }) {
     setLoading(true);
     const { data, error } = await supabase
       .from('registrations')
-      .select('*, events(name), registration_members(*)')
+      .select('*, events(name), registration_members(*), registration_answers(*, event_form_fields(label))')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -1960,16 +2309,23 @@ function RegistrationsModule({ events, showToast }) {
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-slate-900">{reg.name}</span>
                     <span className="text-[10px] bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-full font-semibold">
-                      PJ / Pendaftar Utama
+                      Pendaftar Utama
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
                     📱 {reg.whatsapp} {reg.email && `| ✉️ ${reg.email}`}
                   </p>
-                  {reg.notes && (
-                    <p className="text-[11px] text-teal-700 font-medium mt-1 bg-teal-50 px-2 py-0.5 rounded border border-teal-100 w-fit">
-                      {reg.notes}
-                    </p>
+                  
+                  {/* DISPLAY DYNAMIC ANSWERS FROM FORM BUILDER */}
+                  {reg.registration_answers && reg.registration_answers.length > 0 && (
+                    <div className="mt-2 space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
+                      <div className="text-[10px] font-bold text-indigo-700 uppercase">Jawaban Form Kustom:</div>
+                      {reg.registration_answers.map(ans => (
+                        <div key={ans.id} className="text-slate-700">
+                          <strong>{ans.event_form_fields?.label || 'Pertanyaan'}:</strong> <span className="text-teal-800 font-semibold">{ans.answer_value}</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
                 <div className="text-left sm:text-right text-xs">
@@ -2434,7 +2790,7 @@ function OngoingModuleTitle({ title }) {
       </div>
       <h3 className="font-bold text-base text-slate-900">{title}</h3>
       <p className="text-xs text-slate-500 max-w-md mx-auto">
-        Modul ini sedang dalam tahap pengembangan (*Ongoing*) untuk pembaruan sistem berikutnya. Fokus utama saat ini sudah siap digunakan untuk *Go Live* manajemen acara dan check-in tiket!
+        Modul ini sedang dalam tahap pengembangan (*Ongoing*) untuk pembaruan sistem berikutnya.
       </p>
     </div>
   );
