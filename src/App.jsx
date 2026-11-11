@@ -128,7 +128,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     name: '',
     whatsapp: '',
     email: '',
-    category: 'Dewasa',
     notes: ''
   });
 
@@ -204,7 +203,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
   };
 
   const handleAddMember = () => {
-    setMembers([...members, { name: '', category: 'Dewasa' }]);
+    setMembers([...members, { name: '' }]);
   };
 
   const handleRemoveMember = (index) => {
@@ -313,7 +312,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
         registration_id: regId,
         ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
         name: cleanInputName,
-        category: formData.category || 'Dewasa'
+        category: 'Umum'
       }
     ];
 
@@ -325,7 +324,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           registration_id: regId,
           ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
           name: m.name.trim(),
-          category: m.category
+          category: 'Umum'
         }));
 
       memberPayloads = [...memberPayloads, ...extraMembers];
@@ -420,7 +419,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                   <div key={tkt.id} className="bg-white text-slate-900 p-4 rounded-xl shadow border border-slate-200 flex flex-col items-center text-center space-y-2">
                     <div className="w-full flex justify-between items-center text-[10px] text-slate-500 font-bold border-b pb-1">
                       <span>TIKET #{idx + 1}</span>
-                      <span className="text-teal-700">{tkt.category}</span>
+                      <span className="text-teal-700">Umum</span>
                     </div>
                     <div className="font-bold text-sm text-slate-900">{tkt.name}</div>
                     
@@ -502,7 +501,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                   type="button"
                   onClick={() => {
                     setRegType('GROUP');
-                    if (members.length === 0) setMembers([{ name: '', category: 'Dewasa' }]);
+                    if (members.length === 0) setMembers([{ name: '' }]);
                   }}
                   className={`py-2.5 rounded-lg transition-all ${regType === 'GROUP' ? 'bg-teal-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                 >
@@ -556,17 +555,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                     </div>
                   )}
                 </div>
-
-                {regType === 'INDIVIDUAL' && (
-                  <div>
-                    <label className="block text-slate-300 mb-1 font-semibold">Kategori Usia</label>
-                    <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500">
-                      <option value="Dewasa">Dewasa</option>
-                      <option value="Pemuda / Remaja">Pemuda / Remaja</option>
-                      <option value="Lansia">Lansia</option>
-                    </select>
-                  </div>
-                )}
               </div>
 
               {customFields.length > 0 && (
@@ -636,7 +624,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                                       : 'bg-slate-900 border-slate-700 hover:border-slate-500'
                                 }`}
                               >
-                                <div className="flex items-center gap-3 pr-3 flex-1">
+                                <div className="flex items-center gap-3 pr-2 flex-1">
                                   <input 
                                     type="radio"
                                     disabled={isOptFull}
@@ -652,7 +640,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                                 </div>
 
                                 {maxQ > 0 && (
-                                  <div className={`w-32 py-1.5 px-2.5 rounded-lg text-center font-mono text-[11px] font-bold shrink-0 ${
+                                  <div className={`w-24 py-1 px-2 rounded-lg text-center font-mono text-[10px] font-bold shrink-0 ${
                                     isOptFull 
                                       ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
                                       : 'bg-slate-800 text-teal-400 border border-slate-700'
@@ -682,7 +670,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
                             return (
                               <option key={oIdx} value={labelStr} disabled={isOptFull}>
-                                {labelStr} {maxQ > 0 ? (isOptFull ? '❌ (Penuh)' : `(Sisa ${maxQ - countNow})`) : ''}
+                                {labelStr} {maxQ > 0 ? (isOptFull ? '❌ (Penuh)' : `(Kuota : ${maxQ - countNow})`) : ''}
                               </option>
                             );
                           })}
@@ -720,16 +708,6 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                           updated[idx].name = e.target.value;
                           setMembers(updated);
                         }} placeholder={`Nama Anggota Tambahan ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
-                        
-                        <select value={member.category} onChange={e => {
-                          const updated = [...members];
-                          updated[idx].category = e.target.value;
-                          setMembers(updated);
-                        }} className="p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs">
-                          <option value="Dewasa">Dewasa</option>
-                          <option value="Pemuda / Remaja">Pemuda / Remaja</option>
-                          <option value="Lansia">Lansia</option>
-                        </select>
 
                         <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
                           ✕
@@ -2527,7 +2505,7 @@ function RegistrationsModule({ events, showToast }) {
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="font-bold text-slate-900 text-sm">{mem.name}</div>
-                          <div className="text-[10px] font-mono font-bold text-teal-700 mt-0.5">{mem.ticket_id} ({mem.category})</div>
+                          <div className="text-[10px] font-mono font-bold text-teal-700 mt-0.5">{mem.ticket_id}</div>
                         </div>
                         
                         <button 
@@ -2585,7 +2563,7 @@ function RegistrationsModule({ events, showToast }) {
             </div>
 
             <div className="font-mono text-sm font-bold text-teal-800 bg-teal-50 py-1.5 px-4 rounded-lg border border-teal-200 inline-block">
-              {activeQrModal.member.ticket_id} ({activeQrModal.member.category})
+              {activeQrModal.member.ticket_id}
             </div>
 
             <div className="pt-2 flex gap-2">
