@@ -2809,11 +2809,21 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
 
   const handleDeleteUser = async (id, name) => {
     if (!window.confirm(`Apakah Anda yakin ingin menghapus akses untuk ${name}?`)) return;
-    const { error } = await supabase.from('profiles').delete().eq('id', id);
+    
+    // Tambahkan { count: 'exact' } untuk memverifikasi apakah baris benar-benar terhapus di database
+    const { error, count } = await supabase
+      .from('profiles')
+      .delete({ count: 'exact' })
+      .eq('id', id);
+
     if (error) {
       showToast(`Gagal menghapus user: ${error.message}`, 'error');
+    } else if (count === 0) {
+      showToast(`Gagal menghapus ${name}: Akses ditolak oleh kebijakan database (RLS) atau data sudah tidak ada.`, 'error');
     } else {
       showToast(`Pengguna ${name} berhasil dihapus dari database.`);
+      // Langsung hapus dari state UI agar responsif, lalu sinkronkan ulang
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== id));
       fetchUsers();
     }
   };
