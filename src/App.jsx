@@ -2692,7 +2692,10 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
     }
 
     setSaving(true);
-    const userId = `USR-${Date.now()}`;
+    
+    // Menggunakan UUID generator bawaan browser yang aman dan valid untuk database Supabase
+    const userId = crypto.randomUUID ? crypto.randomUUID() : `usr-${Date.now()}`;
+
     const { error: profileError } = await supabase.from('profiles').insert([{
       id: userId,
       name: newUser.name,
