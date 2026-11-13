@@ -225,7 +225,10 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       return;
     }
 
-    const totalRequestedTickets = regType === 'GROUP' ? members.length + 1 : 1;
+    const validExtraMembers = regType === 'GROUP' 
+      ? members.filter(m => m.name.trim() !== '') 
+      : [];
+    const totalRequestedTickets = 1 + validExtraMembers.length;
 
     // VALIDASI KUOTA UTAMA ACARA
     if (eventData.capacity && eventData.capacity > 0) {
@@ -249,7 +252,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
         if (optionObj && typeof optionObj === 'object' && optionObj.quota) {
           const currentCount = optionCounts[chosenVal] || 0;
-          const maxQuota = parseInt(optionObj.quota);
+          const maxQuota = parseInt(optionObj.quota, 10);
 
           if (maxQuota > 0 && (currentCount + totalRequestedTickets) > maxQuota) {
             alert(`⚠️ Kuota Penuh:\n\nPilihan "${chosenVal}" tersisa ${maxQuota - currentCount} porsi, tidak mencukupi untuk ${totalRequestedTickets} orang.\n\nSilakan pilih opsi yang lain.`);
@@ -296,11 +299,13 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
     }
 
     // SIMPAN JAWABAN CUSTOM FIELDS
-    const answerPayloads = Object.keys(customAnswers).map(fieldId => ({
-      registration_id: regId,
-      field_id: fieldId,
-      answer_value: String(customAnswers[fieldId])
-    }));
+    const answerPayloads = Object.keys(customAnswers)
+      .filter(fieldId => customAnswers[fieldId] !== '')
+      .map(fieldId => ({
+        registration_id: regId,
+        field_id: fieldId,
+        answer_value: String(customAnswers[fieldId])
+      }));
 
     if (answerPayloads.length > 0) {
       await supabase.from('registration_answers').insert(answerPayloads);
@@ -316,16 +321,14 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
       }
     ];
 
-    if (regType === 'GROUP') {
-      const extraMembers = members
-        .filter(m => m.name.trim() !== '')
-        .map((m, idx) => ({
-          id: `MEM-${Date.now()}-${idx + 1}`,
-          registration_id: regId,
-          ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
-          name: m.name.trim(),
-          category: 'Umum'
-        }));
+    if (regType === 'GROUP' && validExtraMembers.length > 0) {
+      const extraMembers = validExtraMembers.map((m, idx) => ({
+        id: `MEM-${Date.now()}-${idx + 1}`,
+        registration_id: regId,
+        ticket_id: `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
+        name: m.name.trim(),
+        category: 'Umum'
+      }));
 
       memberPayloads = [...memberPayloads, ...extraMembers];
     }
@@ -340,6 +343,16 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
     const newRegisteredCount = (eventData.registered || 0) + memberPayloads.length;
     await supabase.from('events').update({ registered: newRegisteredCount }).eq('id', eventId);
+
+    // Update local state supaya kuota langsung ter-update jika user mendaftarkan lagi
+    setEventData(prev => ({ ...prev, registered: newRegisteredCount }));
+    setOptionCounts(prev => {
+      const updated = { ...prev };
+      Object.values(customAnswers).forEach(val => {
+        if (val) updated[val] = (updated[val] || 0) + memberPayloads.length;
+      });
+      return updated;
+    });
 
     // KIRIM EMAIL BILA DIAKTIFKAN
     if (isEmailEnabled && formData.email) {
@@ -401,7 +414,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             {isEmailEnabled && formData.email && (
               <div className="p-2 bg-teal-500/10 border border-teal-500/30 rounded-lg text-[11px] text-teal-300 font-medium">
                 📧 Konfirmasi pendaftaran telah dikirimkan ke <strong>{formData.email}</strong>
-            </div>
+              </div>
             )}
           </div>
 
@@ -477,8 +490,8 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           </div>
         </div>
       </div>
-  );
-}
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 p-4 md:p-8 flex flex-col items-center justify-center">
@@ -636,7 +649,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                         <div className="space-y-2.5 pt-1">
                           {(field.options || []).map((optItem, oIdx) => {
                             const labelStr = typeof optItem === 'object' ? optItem.label : optItem;
-                            const maxQ = typeof optItem === 'object' ? parseInt(optItem.quota || 0) : 0;
+                            const maxQ = typeof optItem === 'object' ? parseInt(optItem.quota || 0, 10) : 0;
                             const countNow = optionCounts[labelStr] || 0;
                             const isOptFull = maxQ > 0 && countNow >= maxQ;
 
@@ -655,6 +668,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                                   <input 
                                     type="radio"
                                     disabled={isOptFull}
+                                    required={field.is_required}
                                     name={`field_${field.id}`}
                                     value={labelStr}
                                     checked={customAnswers[field.id] === labelStr}
@@ -668,13 +682,13 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
                                 {maxQ > 0 && (
                                   <div className={`w-24 py-1 px-2 rounded-lg text-center font-mono text-[10px] font-bold shrink-0 ${
-                                      isOptFull 
+                                    isOptFull 
                                       ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
                                       : 'bg-slate-800 text-teal-400 border border-slate-700'
                                   }`}>
                                     {isOptFull ? 'Penuh' : `Kuota : ${maxQ - countNow}`}
-                                </div>
-                              )}
+                                  </div>
+                                )}
                               </label>
                             );
                           })}
@@ -687,11 +701,11 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                           value={customAnswers[field.id] || ''}
                           onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
                           className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
-                      >
+                        >
                           <option value="">-- Pilih Salah Satu --</option>
                           {(field.options || []).map((optItem, oIdx) => {
                             const labelStr = typeof optItem === 'object' ? optItem.label : optItem;
-                            const maxQ = typeof optItem === 'object' ? parseInt(optItem.quota || 0) : 0;
+                            const maxQ = typeof optItem === 'object' ? parseInt(optItem.quota || 0, 10) : 0;
                             const countNow = optionCounts[labelStr] || 0;
                             const isOptFull = maxQ > 0 && countNow >= maxQ;
 
@@ -700,12 +714,12 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                                 {labelStr} {maxQ > 0 ? (isOptFull ? '❌ (Penuh)' : `(Kuota : ${maxQ - countNow})`) : ''}
                               </option>
                             );
-                      })}
-                      </select>
-                    )}
+                          })}
+                        </select>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                ))}
-              </div>
               )}
 
               {regType === 'GROUP' && (
@@ -714,47 +728,47 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                     <div>
                       <h4 className="font-bold text-teal-400 text-xs">2. Anggota Tambahan yang Diikutkan</h4>
                       <p className="text-[10px] text-slate-400">Pendaftar Utama otomatis terhitung mendapat 1 Tiket.</p>
-                  </div>
-                  <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
-                    <Plus size={14} /> Tambah Anggota
-                  </button>
-                </div>
-
-                {members.length === 0 ? (
-                  <div className="p-3 bg-slate-900/50 rounded-lg border border-dashed border-slate-700 text-slate-400 text-[11px] text-center">
-                    Belum ada anggota tambahan. Klik &quot;+ Tambah Anggota&quot; di atas jika membawa keluarga/teman.
-                  </div>
-                ) : (
-                  members.map((member, idx) => (
-                    <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
-                      <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-teal-400 text-[10px] shrink-0">
-                        +{idx + 1}
-                      </div>
-                      <input required type="text" value={member.name} onChange={e => {
-                        const updated = [...members];
-                        updated[idx].name = e.target.value;
-                        setMembers(updated);
-                      }} placeholder={`Nama Anggota Tambahan ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
-
-                      <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
-                        ✕
-                      </button>
                     </div>
-                  ))
-                )}
-              </div>
-            )}
+                    <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
+                      <Plus size={14} /> Tambah Anggota
+                    </button>
+                  </div>
 
-            <div className="pt-2">
-              <button type="submit" disabled={submitting || !!phoneError || (isEmailEnabled && !!emailError)} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
-                {submitting ? 'Memproses Pendaftaran...' : 'Konfirmasi & Kirim Pendaftaran'}
-              </button>
-            </div>
-          </form>
-        </>
+                  {members.length === 0 ? (
+                    <div className="p-3 bg-slate-900/50 rounded-lg border border-dashed border-slate-700 text-slate-400 text-[11px] text-center">
+                      Belum ada anggota tambahan. Klik &quot;+ Tambah Anggota&quot; di atas jika membawa keluarga/teman.
+                    </div>
+                  ) : (
+                    members.map((member, idx) => (
+                      <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-teal-400 text-[10px] shrink-0">
+                          +{idx + 1}
+                        </div>
+                        <input required type="text" value={member.name} onChange={e => {
+                          const updated = [...members];
+                          updated[idx].name = e.target.value;
+                          setMembers(updated);
+                        }} placeholder={`Nama Anggota Tambahan ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+
+                        <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
+                          ✕
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              <div className="pt-2">
+                <button type="submit" disabled={submitting || !!phoneError || (isEmailEnabled && !!emailError)} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
+                  {submitting ? 'Memproses Pendaftaran...' : 'Konfirmasi & Kirim Pendaftaran'}
+                </button>
+              </div>
+            </form>
+          </>
         )}
       </div>
-  </div>
+    </div>
   );
 }
 
@@ -815,6 +829,13 @@ export default function App() {
     setLoadingEvents(false);
   };
 
+  const fetchDashboardData = async () => {
+    const { data: regData } = await supabase
+      .from('registrations')
+      .select('*, registration_members(*)');
+    if (regData) setRegistrations(regData);
+  };
+
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
@@ -829,45 +850,45 @@ export default function App() {
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const determineUserRole = async (user) => {
+      if (!user) return 'CHECKIN_STAFF';
+      if (user.email === 'joshuamerian8@gmail.com') return 'SUPER_ADMIN';
+      
+      // Cek dari tabel profiles terlebih dahulu agar sinkron dengan manajemen roles
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profile?.role) return profile.role;
+      return user.user_metadata?.role || 'CHECKIN_STAFF';
+    };
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        const userEmail = session.user.email;
-        const metaRole = session.user.user_metadata?.role;
-        
-        let determinedRole = 'CHECKIN_STAFF';
-        if (userEmail === 'joshuamerian8@gmail.com') {
-          determinedRole = 'SUPER_ADMIN';
-        } else if (metaRole) {
-          determinedRole = metaRole;
-        }
-        
-        setCurrentRole(determinedRole);
+        const role = await determineUserRole(session.user);
+        setCurrentRole(role);
+        if (role === 'CHECKIN_STAFF') setActiveTab('checkin');
       }
       setCheckingAuth(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         setSession(session);
         if (session?.user) {
-          const userEmail = session.user.email;
-          const metaRole = session.user.user_metadata?.role;
-          
-          let determinedRole = 'CHECKIN_STAFF';
-          if (userEmail === 'joshuamerian8@gmail.com') {
-            determinedRole = 'SUPER_ADMIN';
-          } else if (metaRole) {
-            determinedRole = metaRole;
-          }
-
-          setCurrentRole(determinedRole);
+          const role = await determineUserRole(session.user);
+          setCurrentRole(role);
+          if (role === 'CHECKIN_STAFF') setActiveTab('checkin');
         }
       }
       setCheckingAuth(false);
     });
 
     fetchRealEvents();
+    fetchDashboardData();
 
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
@@ -886,7 +907,7 @@ export default function App() {
   };
 
   if (publicEventId) {
-    return <PublicRegisterPage eventId={publicEventId} onBackToAdmin={() => window.location.hash = ''} />;
+    return <PublicRegisterPage eventId={publicEventId} onBackToAdmin={() => { window.location.hash = ''; }} />;
   }
 
   if (checkingAuth) {
@@ -917,7 +938,10 @@ export default function App() {
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         <div 
-          onClick={() => { setActiveTab('dashboard'); if(mobileMenuOpen) setMobileMenuOpen(false); }}
+          onClick={() => { 
+            setActiveTab(currentRole === 'CHECKIN_STAFF' ? 'checkin' : 'dashboard'); 
+            if (mobileMenuOpen) setMobileMenuOpen(false); 
+          }}
           className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950 cursor-pointer hover:bg-slate-900 transition"
           title="Kembali ke Dashboard Overview"
         >
@@ -1042,11 +1066,11 @@ export default function App() {
         <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50">
           {activeTab === 'dashboard' && <DashboardModule events={events} contacts={contacts} registrations={registrations} setActiveTab={setActiveTab} currentRole={currentRole} />}
           {activeTab === 'events' && <EventsModule events={events} fetchRealEvents={fetchRealEvents} loadingEvents={loadingEvents} showToast={showToast} setPublicEventId={setPublicEventId} />}
-          {activeTab === 'registrations' && <RegistrationsModule events={events} showToast={showToast} />}
-           
+          {activeTab === 'registrations' && <RegistrationsModule events={events} showToast={showToast} onRefreshAll={() => { fetchRealEvents(); fetchDashboardData(); }} />}
+          
           {activeTab === 'checkin' && (
             ['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) ? (
-              <CheckInModule showToast={showToast} />
+              <CheckInModule showToast={showToast} onCheckInSuccess={() => { fetchRealEvents(); fetchDashboardData(); }} />
             ) : (
               <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-center text-rose-700 space-y-2">
                 <h3 className="font-bold text-sm">⛔ Akses Ditolak</h3>
@@ -1062,7 +1086,7 @@ export default function App() {
           {activeTab === 'email' && <EmailModule />}
           {activeTab === 'whatsapp' && <WhatsAppModule />}
           {activeTab === 'reports' && <ReportsModule />}
-           
+          
           {activeTab === 'roles' && (
             currentRole === 'SUPER_ADMIN' ? (
               <RolesModule currentRole={currentRole} setCurrentRole={setCurrentRole} showToast={showToast} />
@@ -1187,7 +1211,7 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
             <h3 className="font-bold text-slate-800 text-xs md:text-sm pb-3 border-b border-slate-100 flex items-center gap-2">
               <Sparkles size={18} className="text-amber-500" /> Aksi Cepat Operasional
             </h3>
-             
+            
             <div className="mt-4 space-y-2.5">
               {['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) && (
                 <button onClick={() => setActiveTab('checkin')} className="w-full text-left p-3 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 flex items-center justify-between transition">
@@ -1247,7 +1271,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFormBuilderModal, setShowFormBuilderModal] = useState(false);
-   
+  
   const [selectedEventForBuilder, setSelectedEventForBuilder] = useState(null);
   const [formFields, setFormFields] = useState([]);
   const [loadingFields, setLoadingFields] = useState(false);
@@ -1255,7 +1279,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
   const [saving, setSaving] = useState(false);
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [isEditUnlimited, setIsEditUnlimited] = useState(false);
-   
+  
   const [newEvent, setNewEvent] = useState({
     name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allow_family: true, enable_qr: true, require_email: true, description: ''
   });
@@ -1276,7 +1300,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       date: newEvent.date,
       time: newEvent.time || '09:00 WIB',
       venue: newEvent.venue || 'Main Sanctuary GII Holis',
-      capacity: isUnlimited ? null : (parseInt(newEvent.capacity) || 100),
+      capacity: isUnlimited ? null : (parseInt(newEvent.capacity, 10) || 100),
       registered: 0,
       checked_in: 0,
       status: 'Aktif',
@@ -1329,7 +1353,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       date: editEventData.date,
       time: editEventData.time,
       venue: editEventData.venue,
-      capacity: isEditUnlimited ? null : (parseInt(editEventData.capacity) || 100),
+      capacity: isEditUnlimited ? null : (parseInt(editEventData.capacity, 10) || 100),
       allow_family: editEventData.allow_family,
       enable_qr: editEventData.enable_qr,
       require_email: editEventData.require_email,
@@ -1423,7 +1447,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
         if (typeof parsedOpts === 'string') {
           try { parsedOpts = JSON.parse(parsedOpts); } catch (e) { parsedOpts = []; }
         }
-         
+        
         const formattedOpts = parsedOpts.map(opt => {
           if (typeof opt === 'object' && opt !== null) {
             return { label: opt.label || '', quota: opt.quota || '' };
@@ -1583,7 +1607,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                         <h4 className="font-bold text-slate-900 text-base">{evt.name}</h4>
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">{evt.description}</p>
                       </div>
-                       
+                      
                       <div className="flex items-center gap-1 shrink-0">
                         <button 
                           onClick={() => handleOpenEdit(evt)} 
@@ -1626,7 +1650,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                       <span className="text-slate-500">Pendaftar: </span>
                       <strong className="text-teal-700 font-bold">{evt.registered}</strong> / {isUnlim ? '∞ Unlimited' : `${evt.capacity} Porsi`}
                     </div>
-                     
+                    
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button 
                         onClick={() => handleOpenFormBuilder(evt)} 
@@ -1677,7 +1701,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       {showFormBuilderModal && selectedEventForBuilder && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 my-8 flex flex-col max-h-[90vh]">
-             
+            
             <div className="px-6 py-4 bg-indigo-900 text-white flex justify-between items-center shrink-0">
               <div>
                 <span className="text-[10px] bg-indigo-700 text-indigo-100 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -1701,7 +1725,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                     <div className="font-bold text-indigo-900 flex items-center gap-1.5">
                       <span>📌 Panduan Pembuatan Form:</span>
                     </div>
-                     
+                    
                     <div className="p-2.5 bg-teal-50 border border-teal-200 rounded-lg text-[11px] text-teal-800 space-y-1">
                       <div className="font-bold text-teal-900">⚡ Inputan Otomatis (Sudah Ada di Sistem):</div>
                       <p>
@@ -1748,7 +1772,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 
                         <div>
                           <input 
-                            type="text"
+                            type="text" 
                             value={field.placeholder || ''}
                             onChange={e => handleUpdateFieldLocal(idx, 'placeholder', e.target.value)}
                             placeholder="Teks keterangan/panduan di bawah pertanyaan (Opsional)"
@@ -1762,7 +1786,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                             <label className="block text-[11px] font-bold text-slate-600 uppercase">
                               Daftar Pilihan Opsi &amp; Batas Kuota Per Opsi (Mode B):
                             </label>
-                             
+                            
                             {(field.options || []).map((opt, oIdx) => (
                               <div key={oIdx} className="flex items-center gap-2">
                                 <span className="text-slate-400 text-xs">⚪</span>
@@ -1798,7 +1822,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                             ))}
 
                             <button 
-                              type="button"
+                              type="button" 
                               onClick={() => handleAddOptionLocal(idx)}
                               className="text-indigo-600 hover:text-indigo-800 text-xs font-bold pt-1 flex items-center gap-1"
                             >
@@ -1819,7 +1843,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                           </label>
 
                           <button 
-                            type="button"
+                            type="button" 
                             onClick={() => handleRemoveFieldLocal(field, idx)}
                             className="text-rose-600 hover:bg-rose-50 p-2 rounded-lg text-xs font-bold flex items-center gap-1"
                           >
@@ -1850,7 +1874,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                 Batal
               </button>
               <button 
-                type="button"
+                type="button" 
                 disabled={saving}
                 onClick={handleSaveFormFields}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-md transition disabled:opacity-50"
@@ -2070,7 +2094,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
 // ==========================================
 // MODULE 3: CHECK-IN SCANNER QR REAL (CDN VERSION)
 // ==========================================
-function CheckInModule({ showToast }) {
+function CheckInModule({ showToast, onCheckInSuccess }) {
   const [scanResult, setScanResult] = useState(null);
   const [loadingCheckIn, setLoadingCheckIn] = useState(false);
   const [manualTicketInput, setManualTicketInput] = useState('');
@@ -2079,6 +2103,7 @@ function CheckInModule({ showToast }) {
 
   useEffect(() => {
     let html5QrCode = null;
+    let isMounted = true;
 
     const loadScriptAndStart = () => {
       if (window.Html5Qrcode) {
@@ -2089,13 +2114,18 @@ function CheckInModule({ showToast }) {
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
       script.async = true;
-      script.onload = () => initScanner();
-      script.onerror = () => setCameraError("Gagal memuat library pemindai QR.");
+      script.onload = () => {
+        if (isMounted) initScanner();
+      };
+      script.onerror = () => {
+        if (isMounted) setCameraError("Gagal memuat library pemindai QR.");
+      };
       document.body.appendChild(script);
     };
 
     const initScanner = async () => {
       try {
+        if (!document.getElementById("reader")) return;
         html5QrCode = new window.Html5Qrcode("reader");
 
         const config = { 
@@ -2112,7 +2142,7 @@ function CheckInModule({ showToast }) {
       } catch (err) {
         console.warn("Gagal pakai kamera belakang, mencoba kamera default:", err);
         try {
-          if (html5QrCode) {
+          if (html5QrCode && isMounted) {
             await html5QrCode.start(
               { facingMode: "user" },
               { fps: 10, qrbox: { width: 250, height: 250 } },
@@ -2121,7 +2151,9 @@ function CheckInModule({ showToast }) {
           }
         } catch (fallbackErr) {
           console.error("Kamera gagal diakses penuh:", fallbackErr);
-          setCameraError("Kamera tidak dapat diakses otomatis. Pastikan izin kamera di browser sudah diizinkan (Allow).");
+          if (isMounted) {
+            setCameraError("Kamera tidak dapat diakses otomatis. Pastikan izin kamera di browser sudah diizinkan (Allow).");
+          }
         }
       }
     };
@@ -2129,6 +2161,7 @@ function CheckInModule({ showToast }) {
     loadScriptAndStart();
 
     return () => {
+      isMounted = false;
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().then(() => html5QrCode.clear()).catch(err => console.error("Error stop scanner:", err));
       }
@@ -2176,7 +2209,7 @@ function CheckInModule({ showToast }) {
     }
 
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
-     
+    
     const { error: updateError } = await supabase
       .from('registration_members')
       .update({ 
@@ -2218,7 +2251,8 @@ function CheckInModule({ showToast }) {
     setScanResult(successData);
     setRecentCheckIns(prev => [successData.ticket, ...prev.slice(0, 4)]);
     if (showToast) showToast(`Check-in Berhasil: ${ticket.name} (${ticket.ticket_id})`);
-     
+    if (onCheckInSuccess) onCheckInSuccess();
+    
     setLoadingCheckIn(false);
   };
 
@@ -2245,7 +2279,7 @@ function CheckInModule({ showToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
           <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Kamera Pemindai</h4>
-           
+          
           <div className="overflow-hidden rounded-xl border-2 border-slate-200 bg-slate-900 min-h-[280px] flex items-center justify-center relative">
             <div id="reader" className="w-full h-full min-h-[250px]"></div>
           </div>
@@ -2352,7 +2386,7 @@ function CheckInModule({ showToast }) {
 // ==========================================
 // MODULE 4: DATA REGISTRASI & PENDAFTARAN JEMAAT
 // ==========================================
-function RegistrationsModule({ events, showToast }) {
+function RegistrationsModule({ events, showToast, onRefreshAll }) {
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEventId, setSelectedEventId] = useState('ALL');
@@ -2417,7 +2451,7 @@ function RegistrationsModule({ events, showToast }) {
     }
 
     if (showToast) showToast(`Berhasil Check-In Manual: ${member.name} (${member.ticket_id})`);
-     
+    
     setRegistrations(prevRegs => prevRegs.map(reg => ({
       ...reg,
       registration_members: reg.registration_members.map(m => 
@@ -2425,6 +2459,7 @@ function RegistrationsModule({ events, showToast }) {
       )
     })));
 
+    if (onRefreshAll) onRefreshAll();
     setProcessingId(null);
   };
 
@@ -2443,7 +2478,7 @@ function RegistrationsModule({ events, showToast }) {
           <h3 className="font-bold text-base text-slate-900">Data Pendaftaran Jemaat</h3>
           <p className="text-xs text-slate-500">Daftar seluruh jemaat &amp; E-Tiket yang telah diterbitkan</p>
         </div>
-         
+        
         <div className="flex flex-wrap items-center gap-2">
           <select 
             value={selectedEventId} 
@@ -2502,7 +2537,7 @@ function RegistrationsModule({ events, showToast }) {
                   <p className="text-xs text-slate-500 mt-0.5">
                     📱 {reg.whatsapp} {reg.email && `| ✉️ ${reg.email}`}
                   </p>
-                   
+                  
                   {reg.registration_answers && reg.registration_answers.length > 0 && (
                     <div className="mt-2 space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
                       <div className="text-[10px] font-bold text-indigo-700 uppercase">Jawaban Form Kustom:</div>
@@ -2534,9 +2569,9 @@ function RegistrationsModule({ events, showToast }) {
                           <div className="font-bold text-slate-900 text-sm">{mem.name}</div>
                           <div className="text-[10px] font-mono font-bold text-teal-700 mt-0.5">{mem.ticket_id}</div>
                         </div>
-                         
+                        
                         <button 
-                          onClick={() => setActiveQrModal({ member: mem, eventName: reg.events?.name })}
+                          onClick={() => setActiveQrModal({ member: mem, eventName: reg.events?.name, eventId: reg.event_id })}
                           className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-md shadow-sm transition" 
                           title="Tampilkan QR Code"
                         >
@@ -2597,7 +2632,7 @@ function RegistrationsModule({ events, showToast }) {
               {!activeQrModal.member.checked_in && (
                 <button 
                   onClick={() => {
-                    handleManualCheckIn(activeQrModal.member, null);
+                    handleManualCheckIn(activeQrModal.member, activeQrModal.eventId);
                     setActiveQrModal(null);
                   }}
                   className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition"
@@ -2656,7 +2691,7 @@ function EmailModule() {
 }
 
 // ==========================================
-// MODULE: MANAJEMEN USER & ROLES (FULL CRUD SUPABASE) - FIXED FOREIGN KEY ISSUE
+// MODULE: MANAJEMEN USER & ROLES (FULL CRUD SUPABASE)
 // ==========================================
 function RolesModule({ currentRole, setCurrentRole, showToast }) {
   const [users, setUsers] = useState([]);
@@ -2664,7 +2699,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
-   
+  
   const [newUser, setNewUser] = useState({ email: '', name: '', role: 'CHECKIN_STAFF', password: '' });
   const [editUser, setEditUser] = useState({ id: '', name: '', email: '', role: 'CHECKIN_STAFF', status: 'Aktif' });
 
@@ -2692,7 +2727,11 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
     }
 
     setSaving(true);
-    
+
+    // Simpan sesi Super Admin saat ini agar tidak ter-logout saat signUp user baru
+    const { data: currentSessionData } = await supabase.auth.getSession();
+    const adminSession = currentSessionData?.session;
+
     // 1. Daftarkan akun melalui Supabase Auth agar menghasilkan auth.users(id) yang valid
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: newUser.email,
@@ -2705,8 +2744,15 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
       }
     });
 
+    // Pulihkan sesi Super Admin jika signUp mengganti sesi aktif di browser
+    if (adminSession) {
+      await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token
+      });
+    }
+
     if (authError) {
-      // Jika user sudah terdaftar di auth, coba ambil dari profiles atau beri tahu error
       showToast(`Gagal mendaftarkan akun auth: ${authError.message}`, 'error');
       setSaving(false);
       return;
@@ -2857,7 +2903,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
               </div>
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Password Login *</label>
-                <input required type="password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="••••••••" className="w-full p-2.5 border rounded-lg border-slate-300" />
+                <input required minLength={6} type="password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="Minimal 6 karakter" className="w-full p-2.5 border rounded-lg border-slate-300" />
               </div>
               <div>
                 <label className="block font-semibold mb-1 text-slate-700">Hak Akses (Role)</label>
@@ -2934,7 +2980,7 @@ function OngoingModuleTitle({ title }) {
       </div>
       <h3 className="font-bold text-base text-slate-900">{title}</h3>
       <p className="text-xs text-slate-500 max-w-md mx-auto">
-        Modul ini sedang dalam tahap pengembangan (*Ongoing*) untuk pembaruan sistem berikutnya.
+        Modul ini sedang dalam tahap pengembangan (<em>Ongoing</em>) untuk pembaruan sistem berikutnya.
       </p>
     </div>
   );
