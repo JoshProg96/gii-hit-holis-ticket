@@ -401,7 +401,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
             {isEmailEnabled && formData.email && (
               <div className="p-2 bg-teal-500/10 border border-teal-500/30 rounded-lg text-[11px] text-teal-300 font-medium">
                 📧 Konfirmasi pendaftaran telah dikirimkan ke <strong>{formData.email}</strong>
-              </div>
+            </div>
             )}
           </div>
 
@@ -477,8 +477,8 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
           </div>
         </div>
       </div>
-    );
-  }
+  );
+}
 
   return (
     <div className="min-h-screen bg-slate-900 p-4 md:p-8 flex flex-col items-center justify-center">
@@ -668,13 +668,13 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
 
                                 {maxQ > 0 && (
                                   <div className={`w-24 py-1 px-2 rounded-lg text-center font-mono text-[10px] font-bold shrink-0 ${
-                                    isOptFull 
+                                      isOptFull 
                                       ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
                                       : 'bg-slate-800 text-teal-400 border border-slate-700'
                                   }`}>
                                     {isOptFull ? 'Penuh' : `Kuota : ${maxQ - countNow}`}
-                                  </div>
-                                )}
+                                </div>
+                              )}
                               </label>
                             );
                           })}
@@ -687,7 +687,7 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                           value={customAnswers[field.id] || ''}
                           onChange={e => handleCustomAnswerChange(field.id, e.target.value)}
                           className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:border-teal-500"
-                        >
+                      >
                           <option value="">-- Pilih Salah Satu --</option>
                           {(field.options || []).map((optItem, oIdx) => {
                             const labelStr = typeof optItem === 'object' ? optItem.label : optItem;
@@ -700,12 +700,12 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                                 {labelStr} {maxQ > 0 ? (isOptFull ? '❌ (Penuh)' : `(Kuota : ${maxQ - countNow})`) : ''}
                               </option>
                             );
-                          })}
-                        </select>
-                      )}
-                    </div>
-                  ))}
+                      })}
+                      </select>
+                    )}
                 </div>
+                ))}
+              </div>
               )}
 
               {regType === 'GROUP' && (
@@ -714,47 +714,47 @@ function PublicRegisterPage({ eventId, onBackToAdmin }) {
                     <div>
                       <h4 className="font-bold text-teal-400 text-xs">2. Anggota Tambahan yang Diikutkan</h4>
                       <p className="text-[10px] text-slate-400">Pendaftar Utama otomatis terhitung mendapat 1 Tiket.</p>
-                    </div>
-                    <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
-                      <Plus size={14} /> Tambah Anggota
-                    </button>
                   </div>
-
-                  {members.length === 0 ? (
-                    <div className="p-3 bg-slate-900/50 rounded-lg border border-dashed border-slate-700 text-slate-400 text-[11px] text-center">
-                      Belum ada anggota tambahan. Klik &quot;+ Tambah Anggota&quot; di atas jika membawa keluarga/teman.
-                    </div>
-                  ) : (
-                    members.map((member, idx) => (
-                      <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
-                        <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-teal-400 text-[10px] shrink-0">
-                          +{idx + 1}
-                        </div>
-                        <input required type="text" value={member.name} onChange={e => {
-                          const updated = [...members];
-                          updated[idx].name = e.target.value;
-                          setMembers(updated);
-                        }} placeholder={`Nama Anggota Tambahan ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
-
-                        <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
-                          ✕
-                        </button>
-                      </div>
-                    ))
-                  )}
+                  <button type="button" onClick={handleAddMember} className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
+                    <Plus size={14} /> Tambah Anggota
+                  </button>
                 </div>
-              )}
 
-              <div className="pt-2">
-                <button type="submit" disabled={submitting || !!phoneError || (isEmailEnabled && !!emailError)} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
-                  {submitting ? 'Memproses Pendaftaran...' : 'Konfirmasi & Kirim Pendaftaran'}
-                </button>
+                {members.length === 0 ? (
+                  <div className="p-3 bg-slate-900/50 rounded-lg border border-dashed border-slate-700 text-slate-400 text-[11px] text-center">
+                    Belum ada anggota tambahan. Klik &quot;+ Tambah Anggota&quot; di atas jika membawa keluarga/teman.
+                  </div>
+                ) : (
+                  members.map((member, idx) => (
+                    <div key={idx} className="p-3 bg-slate-900 rounded-lg border border-slate-700 flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center font-bold text-teal-400 text-[10px] shrink-0">
+                        +{idx + 1}
+                      </div>
+                      <input required type="text" value={member.name} onChange={e => {
+                        const updated = [...members];
+                        updated[idx].name = e.target.value;
+                        setMembers(updated);
+                      }} placeholder={`Nama Anggota Tambahan ${idx + 1}`} className="flex-1 p-2 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+
+                      <button type="button" onClick={() => handleRemoveMember(idx)} className="text-rose-400 hover:text-rose-300 p-1">
+                        ✕
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
-            </form>
-          </>
+            )}
+
+            <div className="pt-2">
+              <button type="submit" disabled={submitting || !!phoneError || (isEmailEnabled && !!emailError)} className="w-full py-3 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-white shadow-lg shadow-teal-600/30 transition disabled:opacity-50">
+                {submitting ? 'Memproses Pendaftaran...' : 'Konfirmasi & Kirim Pendaftaran'}
+              </button>
+            </div>
+          </form>
+        </>
         )}
       </div>
-    </div>
+  </div>
   );
 }
 
@@ -1043,7 +1043,7 @@ export default function App() {
           {activeTab === 'dashboard' && <DashboardModule events={events} contacts={contacts} registrations={registrations} setActiveTab={setActiveTab} currentRole={currentRole} />}
           {activeTab === 'events' && <EventsModule events={events} fetchRealEvents={fetchRealEvents} loadingEvents={loadingEvents} showToast={showToast} setPublicEventId={setPublicEventId} />}
           {activeTab === 'registrations' && <RegistrationsModule events={events} showToast={showToast} />}
-          
+           
           {activeTab === 'checkin' && (
             ['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) ? (
               <CheckInModule showToast={showToast} />
@@ -1062,7 +1062,7 @@ export default function App() {
           {activeTab === 'email' && <EmailModule />}
           {activeTab === 'whatsapp' && <WhatsAppModule />}
           {activeTab === 'reports' && <ReportsModule />}
-          
+           
           {activeTab === 'roles' && (
             currentRole === 'SUPER_ADMIN' ? (
               <RolesModule currentRole={currentRole} setCurrentRole={setCurrentRole} showToast={showToast} />
@@ -1187,7 +1187,7 @@ function DashboardModule({ events, contacts, registrations, setActiveTab, curren
             <h3 className="font-bold text-slate-800 text-xs md:text-sm pb-3 border-b border-slate-100 flex items-center gap-2">
               <Sparkles size={18} className="text-amber-500" /> Aksi Cepat Operasional
             </h3>
-            
+             
             <div className="mt-4 space-y-2.5">
               {['SUPER_ADMIN', 'CHECKIN_STAFF'].includes(currentRole) && (
                 <button onClick={() => setActiveTab('checkin')} className="w-full text-left p-3 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-900 flex items-center justify-between transition">
@@ -1247,7 +1247,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFormBuilderModal, setShowFormBuilderModal] = useState(false);
-  
+   
   const [selectedEventForBuilder, setSelectedEventForBuilder] = useState(null);
   const [formFields, setFormFields] = useState([]);
   const [loadingFields, setLoadingFields] = useState(false);
@@ -1255,7 +1255,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
   const [saving, setSaving] = useState(false);
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [isEditUnlimited, setIsEditUnlimited] = useState(false);
-  
+   
   const [newEvent, setNewEvent] = useState({
     name: '', category: 'Ibadah Minggu', date: '', time: '', venue: 'Main Sanctuary GII Holis', capacity: 200, allow_family: true, enable_qr: true, require_email: true, description: ''
   });
@@ -1423,7 +1423,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
         if (typeof parsedOpts === 'string') {
           try { parsedOpts = JSON.parse(parsedOpts); } catch (e) { parsedOpts = []; }
         }
-        
+         
         const formattedOpts = parsedOpts.map(opt => {
           if (typeof opt === 'object' && opt !== null) {
             return { label: opt.label || '', quota: opt.quota || '' };
@@ -1583,7 +1583,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                         <h4 className="font-bold text-slate-900 text-base">{evt.name}</h4>
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">{evt.description}</p>
                       </div>
-                      
+                       
                       <div className="flex items-center gap-1 shrink-0">
                         <button 
                           onClick={() => handleOpenEdit(evt)} 
@@ -1626,7 +1626,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                       <span className="text-slate-500">Pendaftar: </span>
                       <strong className="text-teal-700 font-bold">{evt.registered}</strong> / {isUnlim ? '∞ Unlimited' : `${evt.capacity} Porsi`}
                     </div>
-                    
+                     
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button 
                         onClick={() => handleOpenFormBuilder(evt)} 
@@ -1677,7 +1677,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
       {showFormBuilderModal && selectedEventForBuilder && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-300 my-8 flex flex-col max-h-[90vh]">
-            
+             
             <div className="px-6 py-4 bg-indigo-900 text-white flex justify-between items-center shrink-0">
               <div>
                 <span className="text-[10px] bg-indigo-700 text-indigo-100 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -1701,7 +1701,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                     <div className="font-bold text-indigo-900 flex items-center gap-1.5">
                       <span>📌 Panduan Pembuatan Form:</span>
                     </div>
-                    
+                     
                     <div className="p-2.5 bg-teal-50 border border-teal-200 rounded-lg text-[11px] text-teal-800 space-y-1">
                       <div className="font-bold text-teal-900">⚡ Inputan Otomatis (Sudah Ada di Sistem):</div>
                       <p>
@@ -1762,7 +1762,7 @@ function EventsModule({ events, fetchRealEvents, loadingEvents, showToast, setPu
                             <label className="block text-[11px] font-bold text-slate-600 uppercase">
                               Daftar Pilihan Opsi &amp; Batas Kuota Per Opsi (Mode B):
                             </label>
-                            
+                             
                             {(field.options || []).map((opt, oIdx) => (
                               <div key={oIdx} className="flex items-center gap-2">
                                 <span className="text-slate-400 text-xs">⚪</span>
@@ -2176,7 +2176,7 @@ function CheckInModule({ showToast }) {
     }
 
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
-    
+     
     const { error: updateError } = await supabase
       .from('registration_members')
       .update({ 
@@ -2218,7 +2218,7 @@ function CheckInModule({ showToast }) {
     setScanResult(successData);
     setRecentCheckIns(prev => [successData.ticket, ...prev.slice(0, 4)]);
     if (showToast) showToast(`Check-in Berhasil: ${ticket.name} (${ticket.ticket_id})`);
-    
+     
     setLoadingCheckIn(false);
   };
 
@@ -2245,7 +2245,7 @@ function CheckInModule({ showToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
           <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Kamera Pemindai</h4>
-          
+           
           <div className="overflow-hidden rounded-xl border-2 border-slate-200 bg-slate-900 min-h-[280px] flex items-center justify-center relative">
             <div id="reader" className="w-full h-full min-h-[250px]"></div>
           </div>
@@ -2417,7 +2417,7 @@ function RegistrationsModule({ events, showToast }) {
     }
 
     if (showToast) showToast(`Berhasil Check-In Manual: ${member.name} (${member.ticket_id})`);
-    
+     
     setRegistrations(prevRegs => prevRegs.map(reg => ({
       ...reg,
       registration_members: reg.registration_members.map(m => 
@@ -2443,7 +2443,7 @@ function RegistrationsModule({ events, showToast }) {
           <h3 className="font-bold text-base text-slate-900">Data Pendaftaran Jemaat</h3>
           <p className="text-xs text-slate-500">Daftar seluruh jemaat &amp; E-Tiket yang telah diterbitkan</p>
         </div>
-        
+         
         <div className="flex flex-wrap items-center gap-2">
           <select 
             value={selectedEventId} 
@@ -2502,7 +2502,7 @@ function RegistrationsModule({ events, showToast }) {
                   <p className="text-xs text-slate-500 mt-0.5">
                     📱 {reg.whatsapp} {reg.email && `| ✉️ ${reg.email}`}
                   </p>
-                  
+                   
                   {reg.registration_answers && reg.registration_answers.length > 0 && (
                     <div className="mt-2 space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
                       <div className="text-[10px] font-bold text-indigo-700 uppercase">Jawaban Form Kustom:</div>
@@ -2534,7 +2534,7 @@ function RegistrationsModule({ events, showToast }) {
                           <div className="font-bold text-slate-900 text-sm">{mem.name}</div>
                           <div className="text-[10px] font-mono font-bold text-teal-700 mt-0.5">{mem.ticket_id}</div>
                         </div>
-                        
+                         
                         <button 
                           onClick={() => setActiveQrModal({ member: mem, eventName: reg.events?.name })}
                           className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-md shadow-sm transition" 
@@ -2656,7 +2656,7 @@ function EmailModule() {
 }
 
 // ==========================================
-// MODULE: MANAJEMEN USER & ROLES (FULL CRUD SUPABASE)
+// MODULE: MANAJEMEN USER & ROLES (FULL CRUD SUPABASE) - FIXED FOREIGN KEY ISSUE
 // ==========================================
 function RolesModule({ currentRole, setCurrentRole, showToast }) {
   const [users, setUsers] = useState([]);
@@ -2664,7 +2664,7 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+   
   const [newUser, setNewUser] = useState({ email: '', name: '', role: 'CHECKIN_STAFF', password: '' });
   const [editUser, setEditUser] = useState({ id: '', name: '', email: '', role: 'CHECKIN_STAFF', status: 'Aktif' });
 
@@ -2693,10 +2693,35 @@ function RolesModule({ currentRole, setCurrentRole, showToast }) {
 
     setSaving(true);
     
-    // Menggunakan UUID generator bawaan browser yang aman dan valid untuk database Supabase
-    const userId = crypto.randomUUID ? crypto.randomUUID() : `usr-${Date.now()}`;
+    // 1. Daftarkan akun melalui Supabase Auth agar menghasilkan auth.users(id) yang valid
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: newUser.email,
+      password: newUser.password,
+      options: {
+        data: {
+          role: newUser.role,
+          name: newUser.name
+        }
+      }
+    });
 
-    const { error: profileError } = await supabase.from('profiles').insert([{
+    if (authError) {
+      // Jika user sudah terdaftar di auth, coba ambil dari profiles atau beri tahu error
+      showToast(`Gagal mendaftarkan akun auth: ${authError.message}`, 'error');
+      setSaving(false);
+      return;
+    }
+
+    const userId = authData?.user?.id;
+
+    if (!userId) {
+      showToast('Gagal mendapatkan UUID user dari Supabase Auth.', 'error');
+      setSaving(false);
+      return;
+    }
+
+    // 2. Masukkan data profil ke tabel profiles menggunakan id valid dari auth.users
+    const { error: profileError } = await supabase.from('profiles').upsert([{
       id: userId,
       name: newUser.name,
       email: newUser.email,
